@@ -14,14 +14,17 @@
     "ai"
   ],
   "exports": {
-    ".": "./dist/index.js",
-    "./server": "./dist/index.js",
-    "./tui": "./src/tui.tsx",
-    "./rpc": "./src/rpc.ts",
+    ".": "./index.js",
+    "./server": "./index.js",
+    "./tui": "./tui.tsx",
+    "./rpc": "./rpc.ts",
     "./package.json": "./package.json"
   },
-  "main": "./dist/index.js",
+  "main": "./index.js",
   "files": [
+    "index.js",
+    "tui.tsx",
+    "rpc.ts",
     "dist",
     "src",
     "goal.config.json",

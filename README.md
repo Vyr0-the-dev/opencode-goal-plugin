@@ -16,14 +16,6 @@ granted.
 
 ## Install
 
-**As a package** — required for the terminal UI, recommended:
-
-```sh
-npx opencode plugin add opencode-goal-plugin
-```
-
-**From this folder, server half only:**
-
 ```sh
 sh install.sh          # macOS, Linux, WSL, Git Bash
 ```
@@ -32,36 +24,41 @@ sh install.sh          # macOS, Linux, WSL, Git Bash
 .\install.ps1          # Windows PowerShell
 ```
 
-Either script writes a one-line loader to `~/.config/opencode/plugins/goal.ts`
-(or `$XDG_CONFIG_HOME/opencode/plugins/goal.ts`) that re-exports the plugin from
-this folder. Both are idempotent: re-running points an existing loader at the new
-location instead of failing, and refuse to clobber a loader that points somewhere
-else unless you pass `-f` / `--force`. Uninstalling is deleting that one file.
+Either script copies this package into `~/.config/opencode/plugins/opencode-goal-plugin`
+(or `$XDG_CONFIG_HOME/opencode/plugins/...`), vendors the terminal half's
+dependencies into the config's `node_modules`, and removes any older single-file
+loader. Re-running refreshes the copy; deleting the directory uninstalls.
+`opencode reload` picks it up, and restarting the TUI loads the terminal half.
 
-`opencode reload` picks up any of these; restarting is not required.
+### Why it installs a directory and not one file
 
-### What the loader file does not give you
+This cost a day to find, so it is written down.
 
-A single loader file has no `package.json` beside it, so the host has no exports
-map to resolve the `./tui` entrypoint from, and **the terminal half never loads**.
-This is observable rather than theoretical — the plugin list reports features per
-half, and a loader-installed copy shows `{"server": true}` with no `tui`, while a
-package-installed one shows `{"server": true, "tui": true}`.
+OpenCode resolves a plugin package's `exports` targets **relative to the package
+root** and does not look inside subdirectories for them. Two consequences:
 
-You still get everything that matters:
+* A single loader file in `~/.config/opencode/plugins/` loads the server half
+  only. There is no package next to it, so the host has no exports map to resolve
+  `./tui` from. The plugin registers as `{"server": true}` and the terminal half
+  never loads — silently, with no warning.
+* A package whose entrypoints live under `./src` or `./dist` is **skipped
+  entirely**, also with no warning.
 
-* `/goal` in every client: TUI, web, desktop, IDE extensions, ACP, `opencode run`,
-  mobile, and anything built on the OpenCode API
-* the `goal_create` / `goal_status` / `goal_update` tools for the model
-* the goal RPC for any client that wants to read or steer it
-* the goal contract injected into every model call, and the automatic continuation
+So every `exports` target here is a file at the package root — `index.js`,
+`tui.tsx`, `rpc.ts` — each a one-line re-export of the real code. That is why
+those three shim files exist, and why the copy is a directory.
 
-What you lose is only the progress row, the badge, the dashboard panel, and the
-`<leader>p` toggle. Install as a package to get those.
+You can see which halves are live without guessing:
 
-The plugin code itself has no platform-specific paths, no OS-gated dependencies,
-and no runtime dependencies at all, so one build serves every platform.
+```sh
+opencode api get /api/plugin
+```
 
+`opencode.goal` should report `{"server": true, "tui": true, "rpc": true}`. A
+missing `tui` means the terminal half is not installed.
+
+The plugin code has no platform-specific paths, no OS-gated dependencies, and no
+runtime dependencies for its server half, so one build serves every platform.
 ## Where it works
 
 The same install works everywhere OpenCode does, because everything that carries
