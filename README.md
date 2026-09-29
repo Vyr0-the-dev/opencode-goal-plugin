@@ -159,11 +159,28 @@ scheduled, which is why the agent answers in the chat rather than in a dialog.
 
 * A `GOAL 3/25` badge appears in the prompt footer.
 * A progress row above the composer shows the title, a bar, and the budget.
-* `ctrl+g` pauses or resumes; `ctrl+g` on a session with no goal shows its status.
-* The command palette has *Goal: open dashboard / status / pause / resume / clear*,
-  and those answer in a dialog from the same RPC, without a model turn.
+* The command palette has *Goal: open dashboard / status / pause / resume / clear*
+  and *Goal: pause or resume*, and those answer in a dialog from the same RPC,
+  without a model turn.
 * The dashboard panel (`p` pause, `r` resume, `R` refresh, `c` clear, `f` fullscreen)
   shows the contract, the blocker, and the ledger.
+
+**No keybind is claimed, on purpose.** An earlier version bound `ctrl+g`, which
+turned out to be OpenCode's own `session.first` — the host won, the plugin lost,
+and pressing it scrolled the transcript instead of opening a goal dialog. Almost
+every `ctrl+` key in the host's table is already assigned, so a hardcoded binding
+is a guess that fails silently. The palette entries are the supported path; to get
+a key, assign the command ID in `cli.json`:
+
+```json title="~/.config/opencode/cli.json"
+{
+  "keybinds": {
+    "opencode.goal.toggle": "<leader>g"
+  }
+}
+```
+
+`<leader>` is `ctrl+x` by default.
 
 **Why the answer costs a turn.** A plugin's only way to write into a transcript is
 `session.synthetic`, and on OpenCode 2.0.16 that message is delivered *only* when

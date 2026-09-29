@@ -409,10 +409,10 @@ export default {
                   {current().title}
                 </text>
                 <Show when={current().status === "active"}>
-                  <text fg={context.theme.text.dim}>· ctrl+g pause</text>
+                  <text fg={context.theme.text.dim}>· /goal pause</text>
                 </Show>
                 <Show when={current().status !== "active" && current().status !== "complete"}>
-                  <text fg={context.theme.text.dim}>· ctrl+g resume</text>
+                  <text fg={context.theme.text.dim}>· /goal resume</text>
                 </Show>
               </box>
             )}
@@ -431,7 +431,14 @@ export default {
       ),
     })
 
-    // ctrl+g toggles pause/resume for the session in view.
+    // Toggle pause/resume for the session in view.
+    //
+    // No key is claimed. An earlier version bound ctrl+g, which is OpenCode's
+    // own `session.first` — the host won, the plugin lost, and the symptom was
+    // "loading chat history" instead of a goal dialog. Nearly every ctrl+ key in
+    // the host's table is already taken, so a hardcoded binding is a guess that
+    // fails silently. This is reachable from the palette, and a key can be
+    // assigned to `opencode.goal.toggle` in `cli.json` under `keybinds`.
     const releaseKeys = context.ui.slot({
       append: "app",
       render: () => {
@@ -443,7 +450,9 @@ export default {
               id: "opencode.goal.toggle",
               title: "Goal: pause or resume",
               group: "Goal",
-              bind: "ctrl+g",
+              description: "Toggle the active goal, or show its status when there is none",
+              palette: true as const,
+              bind: false as const,
               run: () => {
                 const route = context.ui.router.current()
                 if (route.type !== "session") return
