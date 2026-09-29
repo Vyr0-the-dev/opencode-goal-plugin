@@ -14,13 +14,15 @@
     "ai"
   ],
   "exports": {
-    ".": "./src/index.ts",
+    ".": "./dist/index.js",
+    "./server": "./dist/index.js",
     "./tui": "./src/tui.tsx",
     "./rpc": "./src/rpc.ts",
     "./package.json": "./package.json"
   },
-  "main": "./src/index.ts",
+  "main": "./dist/index.js",
   "files": [
+    "dist",
     "src",
     "goal.config.json",
     "install.sh",
@@ -30,11 +32,13 @@
     "README.md"
   ],
   "scripts": {
+    "build": "bun build ./src/index.ts --outdir ./dist --target node --format esm",
     "typecheck": "tsc --noEmit",
     "test": "bun test",
     "setup": "bun run install:posix || bun run install:win",
     "install:posix": "sh ./install.sh",
-    "install:win": "powershell -NoProfile -ExecutionPolicy Bypass -File ./install.ps1"
+    "install:win": "powershell -NoProfile -ExecutionPolicy Bypass -File ./install.ps1",
+    "prepublishOnly": "bun run typecheck && bun test && bun run build"
   },
   "dependencies": {
     "@opentui/core": "^0.5.12",

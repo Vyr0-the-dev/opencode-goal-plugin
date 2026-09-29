@@ -1,14 +1,18 @@
 # Dependencies
 node_modules/
 
-# Build output
-dist/
+# Build output. dist/ is intentionally NOT ignored: the package entrypoints
+# point at dist/index.js, and OpenCode installs git-sourced plugins by cloning
+# them, where there is no build step to produce it.
+# dist/
+
 *.tsbuildinfo
 
 # Local state
 goal.config.local.json
 goal.local.json
 *.log
+*.tgz
 
 # Editor / OS
 .DS_Store
