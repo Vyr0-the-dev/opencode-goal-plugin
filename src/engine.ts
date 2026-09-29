@@ -11,6 +11,7 @@ import {
   budgetExhausted,
   createGoal,
   elapsedMs,
+  isTerminal,
   progressPercent,
   remainingTurns,
   type Goal,
@@ -304,7 +305,15 @@ export class GoalEngine {
     })
     if (!updated) return { goal: undefined, message: NO_GOAL_REPORT }
     await this.#port.changed(updated, sessionID)
-    return { goal: updated, message: `Recorded (${updated.notes.length} ledger entr${updated.notes.length === 1 ? "y" : "ies"}). ${remainingTurns(updated)} automatic turns left.` }
+    const entries = `Recorded (${updated.notes.length} ledger entr${updated.notes.length === 1 ? "y" : "ies"})`
+    // A retired goal can still be annotated, but it will never spend another
+    // turn. "25 automatic turns left" on a cleared goal is what made a dead goal
+    // read as a live one: the ledger entry was honest, the reply was not, and I
+    // acted on the reply. Never promise budget a goal cannot spend.
+    if (isTerminal(updated.status)) {
+      return { goal: updated, message: `${entries} on a ${updated.status} goal. It is not active and will not continue on its own.` }
+    }
+    return { goal: updated, message: `${entries}. ${remainingTurns(updated)} automatic turns left.` }
   }
 
   async recordComplete(sessionID: string, input: { summary?: string; evidence?: string }): Promise<MutationResult> {

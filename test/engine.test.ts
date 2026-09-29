@@ -575,6 +575,24 @@ describe("reports", () => {
     expect(text).toContain("No goal is active")
   })
 
+  test("a retired goal is annotated without promising turns it cannot spend", async () => {
+    const engine = await active()
+    await engine.clear(SES)
+    const result = await engine.recordWorking(SES, { note: "one last look" })
+    expect(result.goal?.status).toBe("cleared")
+    expect(result.message).toContain("cleared")
+    expect(result.message).not.toContain("automatic turns left")
+    // The note is still recorded: the ledger is the audit trail, and a retired
+    // goal is exactly the one whose history someone will want to read.
+    expect(result.goal?.notes.at(-1)?.note).toBe("one last look")
+  })
+
+  test("a live goal is still told how much budget it has", async () => {
+    const engine = await active()
+    const result = await engine.recordWorking(SES, { note: "step one" })
+    expect(result.message).toContain("automatic turns left")
+  })
+
   test("the history report lists the ledger and the transitions", async () => {
     const engine = await active()
     await engine.recordWorking(SES, { note: "profiled the hot path" })
