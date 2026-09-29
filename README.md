@@ -153,12 +153,24 @@ Everything after the objective is optional, and quoting follows shell rules.
 
 ### In the terminal
 
+`/goal` is answered in the TUI itself, so the read-only and lifecycle verbs open a
+dialog immediately and cost nothing. Only input that changes the agent's work —
+an objective, `/goal edit`, `/goal draft` — is handed to the server command, which
+installs the goal and submits the turn that starts the work.
+
 * A `GOAL 3/25` badge appears in the prompt footer.
 * A progress row above the composer shows the title, a bar, and the budget.
 * `ctrl+g` pauses or resumes; `ctrl+g` on a session with no goal shows its status.
 * The command palette has *Goal: open dashboard / status / pause / resume / clear*.
 * The dashboard panel (`p` pause, `r` resume, `R` refresh, `c` clear, `f` fullscreen)
   shows the contract, the blocker, and the ledger.
+
+**Outside the terminal** the server command answers on its own, and a plugin has
+no way to render without spending a model turn, so the answer is recorded with
+`resume: false`: durable, free, and delivered with the session's next turn. Set
+`answerLifecycleImmediately: true` to schedule a turn instead and see the reply
+at once. That is the right trade for `opencode run` and for any client that does
+not implement `/goal` itself.
 
 ---
 
@@ -247,6 +259,7 @@ in `opencode.json(c)` (that wins over the file).
 | `maxNoToolStreak` | `2` | Fruitless turns before the goal is blocked |
 | `postLifecycleNotices` | `true` | Note pauses, budget stops, and blocks in the transcript |
 | `mirrorToSessionMetadata` | `true` | Mirror a summary onto session metadata; verified, and self-disabling if the host ignores it |
+| `answerLifecycleImmediately` | `false` | Make lifecycle answers visible in clients that do not handle `/goal` themselves, at the cost of one model turn |
 | `commandName` | `"goal"` | Slash command name |
 
 Every option is validated; a bad value falls back to its default rather than

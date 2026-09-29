@@ -176,7 +176,16 @@ function remainingTurnsOf(goal: Goal): number {
   return Math.max(0, goal.budget.maxTurns - goal.budget.usedTurns)
 }
 
-/** Records a message in the transcript without scheduling a model turn. */
+/**
+ * Records the answer in the transcript.
+ *
+ * With `resume: false` the message is durable but undelivered, so on a client
+ * that does not answer `/goal` itself nothing appears until some later turn
+ * drains the inbox. That is free but invisible, which is the wrong trade for
+ * the one command a user reaches for most. The TUI intercepts these verbs and
+ * shows a dialog instead; `answerLifecycleImmediately` is the escape hatch for
+ * clients that do not, and it costs one model turn to become visible.
+ */
 async function report(deps: CommandDeps, sessionID: string, text: string): Promise<void> {
   try {
     await deps.host.session.synthetic({
@@ -184,7 +193,7 @@ async function report(deps: CommandDeps, sessionID: string, text: string): Promi
       text,
       description: "goal",
       delivery: "queue",
-      resume: false,
+      resume: deps.options.answerLifecycleImmediately,
       metadata: { [GOAL_METADATA]: "notice" },
     })
   } catch (error) {

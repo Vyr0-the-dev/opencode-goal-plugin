@@ -36,6 +36,12 @@ export interface GoalOptions {
    * and warns if the host ignores the patch.
    */
   readonly mirrorToSessionMetadata: boolean
+  /**
+   * Answer lifecycle verbs by scheduling a turn so the reply appears at once in
+   * any client. Off by default: the TUI answers these locally for free, and a
+   * scheduled turn would spend a model call on saying "goal paused".
+   */
+  readonly answerLifecycleImmediately: boolean
 }
 
 export const DEFAULT_OPTIONS: GoalOptions = {
@@ -51,6 +57,7 @@ export const DEFAULT_OPTIONS: GoalOptions = {
   maxNoToolStreak: 2,
   postLifecycleNotices: true,
   mirrorToSessionMetadata: true,
+  answerLifecycleImmediately: false,
 }
 
 const LIMITS = {
@@ -119,5 +126,6 @@ export function normalizeOptions(raw: unknown): GoalOptions {
     maxNoToolStreak: int(input.maxNoToolStreak, LIMITS.maxNoToolStreak, DEFAULT_OPTIONS.maxNoToolStreak),
     postLifecycleNotices: bool(input.postLifecycleNotices, DEFAULT_OPTIONS.postLifecycleNotices),
     mirrorToSessionMetadata: bool(input.mirrorToSessionMetadata, DEFAULT_OPTIONS.mirrorToSessionMetadata),
+    answerLifecycleImmediately: bool(input.answerLifecycleImmediately, DEFAULT_OPTIONS.answerLifecycleImmediately),
   }
 }

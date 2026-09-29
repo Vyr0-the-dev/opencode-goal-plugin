@@ -16,6 +16,8 @@ import type { Store } from "solid-js/store"
 import { Show, For } from "solid-js"
 import { GoalRpc } from "./rpc.ts"
 import { normalizeOptions } from "./options.ts"
+import { planGoalUiAction } from "./ui-action.ts"
+import { HELP_TEXT } from "./parse.ts"
 
 export const TUI_PANEL = "goal.dashboard"
 
@@ -149,7 +151,11 @@ export default {
       return goal && goal.status !== "cleared" ? goal : undefined
     }
 
-    const act = async (sessionID: string, action: "pause" | "resume" | "clear" | "status" | "continue-once", turns?: number) => {
+    const act = async (
+      sessionID: string,
+      action: "pause" | "resume" | "clear" | "status" | "budget" | "continue-once",
+      turns?: number,
+    ) => {
       try {
         const result = (await api.act({ sessionID, action, ...(turns === undefined ? {} : { turns }) })) as { goal?: unknown }
         put(sessionID, asGoal(result.goal) ?? undefined)
@@ -159,6 +165,8 @@ export default {
           context.ui.toast.show({ title: "Goal", message: "Paused. The objective is kept.", variant: "info" })
         } else if (action === "resume") {
           context.ui.toast.show({ title: "Goal", message: "Resumed. The agent will keep going.", variant: "success" })
+        } else if (action === "budget") {
+          context.ui.toast.show({ title: "Goal", message: `Turn budget set to ${turns}.`, variant: "success" })
         }
       } catch (error) {
         context.ui.toast.show({
@@ -186,7 +194,98 @@ export default {
       })
     }
 
+    /**
+     * `/goal` as the user types it.
+     *
+     * The TUI owns this one. Read-only and lifecycle verbs are answered here,
+     * from the same RPC the dashboard reads, so they appear immediately and cost
+     * nothing. Only a change to the agent's work is handed to the server command.
+     *
+     * `arguments: true` keeps the line in the prompt and hands us the raw text,
+     * which is what lets one entry point serve both kinds of verb.
+     */
+    const runGoalSlash = async (raw?: string) => {
+      const route = context.ui.router.current()
+      const sessionID = route.type === "session" ? route.sessionID : undefined
+      const plan = planGoalUiAction({ text: raw ?? "", hasSession: Boolean(sessionID) })
+
+      if (plan.kind === "refuse") {
+        context.ui.toast.show({
+          title: "Goal",
+          message: "Open a session first, then run /goal there.",
+          variant: "warning",
+        })
+        return
+      }
+
+      if (plan.kind === "answer") {
+        if (plan.verb === "help") {
+          await context.ui.dialog.alert({ title: "Goal", message: HELP_TEXT })
+          return
+        }
+        await refresh(sessionID!)
+        const goal = goalOf(sessionID)
+        if (plan.verb === "history") {
+          const lines = goal?.notes?.length
+            ? goal.notes.map((n) => `· ${n.status}${n.note ? `: ${n.note}` : ""}`).join("\n")
+            : "No progress recorded yet."
+          await context.ui.dialog.alert({
+            title: goal ? `Ledger — ${goal.title}` : "Ledger",
+            message: lines,
+          })
+          return
+        }
+        const detail = goal
+          ? [
+              goal.objective,
+              "",
+              `Status:     ${goal.status}`,
+              `Turns:      ${goal.usedTurns}/${goal.maxTurns} used, ${goal.remainingTurns} left`,
+              `Wall clock: ${minutes(goal.elapsedMs)} of ${minutes(goal.maxMs)}`,
+              goal.verification ? `Verified by: ${goal.verification}` : "",
+              goal.constraints ? `Constraints:  ${goal.constraints}` : "",
+              goal.blocker ? `Blocker:      ${goal.blocker}` : "",
+              goal.evidence ? `Evidence:     ${goal.evidence}` : "",
+            ]
+              .filter((line) => line !== "")
+              .join("\n")
+          : "No goal is active in this session.\n\nUse /goal <outcome> to start one, for example:\n\n  /goal Reduce p95 latency below 120 ms, verified by the benchmark,\n        while the correctness suite stays green."
+        await context.ui.dialog.alert({ title: goal ? goal.title : "Goal", message: detail })
+        return
+      }
+
+      if (plan.kind === "act") {
+        await act(sessionID!, plan.action, plan.turns)
+        await refresh(sessionID!)
+        return
+      }
+
+      // A change to the work itself: hand it to the server command, which owns
+      // installing the goal and submitting the turn that starts it.
+      try {
+        await context.client.session.command({ sessionID: sessionID!, name: "goal", text: plan.text })
+        await refresh(sessionID!)
+      } catch (error) {
+        context.ui.toast.show({
+          title: "Goal",
+          message: error instanceof Error ? error.message : String(error),
+          variant: "error",
+        })
+      }
+    }
+
     const goalCommands = () => [
+      {
+        id: "opencode.goal.slash",
+        title: "Goal",
+        group: "Goal",
+        description: "Set, inspect, or steer the durable goal for this session",
+        palette: true as const,
+        bind: false as const,
+        suggested: true,
+        slash: { name: "goal", aliases: ["goals"], arguments: true as const },
+        run: (input?: string) => void runGoalSlash(input),
+      },
       {
         id: "opencode.goal.panel",
         title: "Goal: open dashboard",
