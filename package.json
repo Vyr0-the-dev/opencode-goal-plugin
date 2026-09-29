@@ -26,6 +26,7 @@
     "install.sh",
     "install.ps1",
     "LICENSE",
+    "CHANGELOG.md",
     "README.md"
   ],
   "scripts": {
@@ -35,28 +36,14 @@
     "install:posix": "sh ./install.sh",
     "install:win": "powershell -NoProfile -ExecutionPolicy Bypass -File ./install.ps1"
   },
-  "devDependencies": {
-    "@opencode/plugin": "^2.0.0",
+  "dependencies": {
     "@opentui/core": "^0.5.12",
     "@opentui/solid": "^0.5.12",
+    "solid-js": "^1.9.15"
+  },
+  "devDependencies": {
+    "@opencode/plugin": "^2.0.0",
     "@types/bun": "latest",
-    "solid-js": "^1.9.15",
     "typescript": "^5.8.0"
-  },
-  "peerDependencies": {
-    "@opentui/core": ">=0.5.8",
-    "@opentui/solid": ">=0.5.8",
-    "solid-js": ">=1.9.0"
-  },
-  "peerDependenciesMeta": {
-    "@opentui/core": {
-      "optional": true
-    },
-    "@opentui/solid": {
-      "optional": true
-    },
-    "solid-js": {
-      "optional": true
-    }
   }
 }
