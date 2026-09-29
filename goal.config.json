@@ -1,0 +1,12 @@
+{
+  "defaultMaxTurns": 25,
+  "defaultMaxMinutes": 180,
+  "continuationDelayMs": 750,
+  "pauseOnInterrupt": true,
+  "skipAgents": ["plan"],
+  "injectGoal": true,
+  "maxNotes": 40,
+  "maxNoToolStreak": 2,
+  "postLifecycleNotices": true,
+  "enabled": true
+}

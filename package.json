@@ -1,0 +1,53 @@
+{
+  "name": "opencode-goal-plugin",
+  "version": "1.0.0",
+  "description": "Persistent, evidence-checked goals for OpenCode. Adds the /goal slash command plus goal_create / goal_status / goal_update tools, so both you and the agent itself can drive long-running work until a verifiable stopping condition.",
+  "type": "module",
+  "license": "MIT",
+  "keywords": [
+    "opencode",
+    "opencode-plugin",
+    "goal",
+    "autonomous",
+    "long-running"
+  ],
+  "exports": {
+    ".": "./src/index.ts",
+    "./tui": "./src/tui.tsx"
+  },
+  "main": "./src/index.ts",
+  "files": [
+    "src",
+    "README.md"
+  ],
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "bun test"
+  },
+  "dependencies": {
+    "@opencode/plugin": "^2.0.0"
+  },
+  "devDependencies": {
+    "@opentui/core": "^0.5.12",
+    "@opentui/solid": "^0.5.12",
+    "@types/bun": "latest",
+    "solid-js": "^1.9.15",
+    "typescript": "^5.8.0"
+  },
+  "peerDependencies": {
+    "@opentui/core": ">=0.5.8",
+    "@opentui/solid": ">=0.5.8",
+    "solid-js": ">=1.9.0"
+  },
+  "peerDependenciesMeta": {
+    "@opentui/core": {
+      "optional": true
+    },
+    "@opentui/solid": {
+      "optional": true
+    },
+    "solid-js": {
+      "optional": true
+    }
+  }
+}
