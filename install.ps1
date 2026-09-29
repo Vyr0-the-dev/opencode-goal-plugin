@@ -25,9 +25,32 @@ param([switch]$Force)
 $ErrorActionPreference = "Stop"
 
 $pluginRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
+
+# The server entrypoint is the compiled dist/index.js, so the build has to be
+# current. Copying a stale bundle is how a source fix silently fails to take
+# effect, which cost an afternoon once already.
+$bunCmd = Get-Command bun -ErrorAction SilentlyContinue
+if ($bunCmd) {
+  Push-Location $pluginRoot
+  try {
+    & bun run build | Out-Null
+    if ($LASTEXITCODE -ne 0) {
+      Write-Warning "bun run build failed; installing the existing dist anyway."
+    }
+  } finally {
+    Pop-Location
+  }
+} else {
+  Write-Warning "bun was not found on PATH; installing the existing dist. Run 'bun run build' first if your source is newer."
+}
+
 $entry = Join-Path $pluginRoot "index.js"
 if (-not (Test-Path $entry)) {
-  throw "Plugin entry not found: $entry. Run 'bun run build' first."
+  throw "Plugin entry not found: $entry"
+}
+$distEntry = Join-Path $pluginRoot "dist\index.js"
+if (-not (Test-Path $distEntry)) {
+  throw "Compiled entrypoint not found: $distEntry"
 }
 
 $configHome = if ($env:XDG_CONFIG_HOME) { $env:XDG_CONFIG_HOME } else { Join-Path $env:USERPROFILE ".config" }

@@ -440,17 +440,16 @@ class GoalStore {
     return `${PREFIX}${sessionID}`;
   }
   async read(sessionID) {
-    const cached = this.#cache.get(sessionID);
-    if (cached)
-      return cached;
     try {
       const raw = await this.#storage.get(this.key(sessionID));
       const goal = reviveGoal(raw);
-      if (goal)
+      if (goal) {
         this.#cache.set(sessionID, goal);
-      return goal;
+        return goal;
+      }
+      return this.#cache.get(sessionID);
     } catch {
-      return;
+      return this.#cache.get(sessionID);
     }
   }
   async write(goal) {
@@ -680,9 +679,14 @@ A previous goal was replaced; its history is in the ledger below.` : "";
     await this.#port.changed(goal, sessionID);
     return {
       goal,
-      message: `Goal cleared: "${current.title}"
-
-The objective and its ledger are removed from this session. Set a new one with \`/goal <outcome>\`.`
+      message: [
+        `Goal cleared: "${current.title}"`,
+        "",
+        "The goal is no longer active and will not continue on its own. Its record and",
+        "ledger are kept in this session, so the history stays auditable. Setting a new",
+        "goal replaces it."
+      ].join(`
+`)
     };
   }
   async forget(sessionID) {

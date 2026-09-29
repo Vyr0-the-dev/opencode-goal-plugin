@@ -42,7 +42,17 @@ while [ -L "$script" ]; do
 done
 plugin_root=$(CDPATH= cd -- "$(dirname -- "$script")" && pwd -P)
 
+# The server entrypoint is the compiled dist/index.js, so the build has to be
+# current. Copying a stale bundle is how a source fix silently fails to take
+# effect, which cost an afternoon once already.
+if command -v bun >/dev/null 2>&1; then
+  (cd "$plugin_root" && bun run build) >/dev/null 2>&1 || echo "warning: build failed, installing the existing dist" >&2
+else
+  echo "warning: bun not found, installing the existing dist; run the build if your source is newer" >&2
+fi
+
 [ -f "$plugin_root/index.js" ] || { echo "Plugin entry not found: $plugin_root/index.js" >&2; exit 1; }
+[ -f "$plugin_root/dist/index.js" ] || { echo "Compiled entrypoint not found: $plugin_root/dist/index.js" >&2; exit 1; }
 
 if [ -n "${XDG_CONFIG_HOME:-}" ]; then config_home="$XDG_CONFIG_HOME"; else config_home="$HOME/.config"; fi
 plugins_dir="$config_home/opencode/plugins"
