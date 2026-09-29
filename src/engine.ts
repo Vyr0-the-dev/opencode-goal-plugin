@@ -235,7 +235,13 @@ export class GoalEngine {
     await this.#port.changed(goal, sessionID)
     return {
       goal,
-      message: `Goal cleared: "${current.title}"\n\nThe objective and its ledger are removed from this session. Set a new one with \`/goal <outcome>\`.`,
+      message: [
+`Goal cleared: "${current.title}"`,
+"",
+"The goal is no longer active and will not continue on its own. Its record and",
+"ledger are kept in this session, so the history stays auditable. Setting a new",
+"goal replaces it.",
+].join("\n"),
     }
   }
 
