@@ -6,6 +6,7 @@ dist/
 *.tsbuildinfo
 
 # Local state
+goal.config.local.json
 goal.local.json
 *.log
 

@@ -149,13 +149,14 @@ export default goalPlugin
 const ACTIVE_GOAL_MARKER = "ACTIVE GOAL (opencode-goal-plugin)"
 
 /**
- * Optional settings from a `goal.config.json` beside the plugin.
+ * Optional settings from `goal.config.json` beside the plugin, overridable by
+ * `goal.config.local.json`.
  *
  * This exists because the plugin is normally loaded by a one-line loader file
  * in `~/.config/opencode/plugins/`, and a bare loader file carries no `options`
  * from the host config. A file the user can edit is the least surprising place
  * for the budget and the continuation policy. Anything set in `opencode.json(c)`
- * under the plugin's `options` wins over this file.
+ * under the plugin's `options` wins over both.
  */
 async function readFileOptions(): Promise<Record<string, unknown> | undefined> {
   let here: string
@@ -164,19 +165,29 @@ async function readFileOptions(): Promise<Record<string, unknown> | undefined> {
   } catch {
     return undefined
   }
-  // `src/` when bundled or run directly, the package root otherwise.
-  for (const dir of [here, join(here, "..")]) {
-    try {
-      const text = await readFile(join(dir, "goal.config.json"), "utf8")
-      const parsed: unknown = JSON.parse(text)
-      if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
-        return parsed as Record<string, unknown>
+  // `src/` when run directly, the package root otherwise.
+  const dirs = [here, join(here, "..")]
+  // A local override wins, so a machine-specific setting never dirties the
+  // shipped defaults or ends up in a commit.
+  const names = ["goal.config.local.json", "goal.config.json"]
+  let merged: Record<string, unknown> = {}
+  let found = false
+  for (const name of names) {
+    for (const dir of dirs) {
+      try {
+        const text = await readFile(join(dir, name), "utf8")
+        const parsed: unknown = JSON.parse(text)
+        if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+          merged = { ...merged, ...(parsed as Record<string, unknown>) }
+          found = true
+        }
+        break
+      } catch {
+        // Not here, or unreadable: try the next location.
       }
-    } catch {
-      // No file here, or it is unreadable or malformed: defaults apply.
     }
   }
-  return undefined
+  return found ? merged : undefined
 }
 
 function dispatchEvent(engine: GoalEngine, mirror: GoalMirror | undefined, event: { type?: string; data?: unknown }): void {

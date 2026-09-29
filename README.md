@@ -172,6 +172,11 @@ no way to render without spending a model turn, so the answer is recorded with
 at once. That is the right trade for `opencode run` and for any client that does
 not implement `/goal` itself.
 
+If you find the TUI's `/goal` entry is not intercepting in your client, set that
+flag in `goal.config.local.json` next to the plugin. It overrides
+`goal.config.json`, is gitignored, and keeps machine-specific settings out of
+commits.
+
 ---
 
 ## How it behaves
