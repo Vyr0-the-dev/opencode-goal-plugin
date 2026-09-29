@@ -15,6 +15,7 @@ import type { Context, PanelInput } from "@opencode/plugin/tui/context"
 import type { Store } from "solid-js/store"
 import { Show, For } from "solid-js"
 import { GoalRpc } from "./rpc.ts"
+import { bar } from "./bar.ts"
 import { normalizeOptions } from "./options.ts"
 import { planGoalUiAction } from "./ui-action.ts"
 import { HELP_TEXT } from "./parse.ts"
@@ -71,11 +72,6 @@ function minutes(ms: number): string {
   const total = Math.max(0, Math.round(ms / 60_000))
   if (total < 60) return `${total}m`
   return `${Math.floor(total / 60)}h${total % 60 ? ` ${total % 60}m` : ""}`
-}
-
-function bar(percent: number, width = 12): string {
-  const filled = Math.max(0, Math.min(width, Math.round((percent / 100) * width)))
-  return `${"█".repeat(filled)}${"░".repeat(width - filled)}`
 }
 
 export default {
@@ -157,7 +153,16 @@ export default {
       turns?: number,
     ) => {
       try {
-        const result = (await api.act({ sessionID, action, ...(turns === undefined ? {} : { turns }) })) as { goal?: unknown }
+        // The TUI is not an external client, it is the client. It shares the RPC
+        // surface with every other client, so without declaring itself the
+        // ledger records the user's own keypress as "paused from an external
+        // client" - true of the transport, misleading about who acted.
+        const result = (await api.act({
+          sessionID,
+          action,
+          origin: "tui",
+          ...(turns === undefined ? {} : { turns }),
+        })) as { goal?: unknown }
         put(sessionID, asGoal(result.goal) ?? undefined)
         if (action === "clear") {
           context.ui.toast.show({ title: "Goal", message: "Cleared.", variant: "info" })

@@ -25,7 +25,7 @@ import { GoalEngine, GOAL_METADATA, type GoalPort, type GoalTurnOrigin } from ".
 import { elapsedMs, progressPercent, remainingTurns, type Goal } from "./goal.ts"
 import { GoalMirror } from "./mirror.ts"
 import { normalizeOptions } from "./options.ts"
-import { GoalRpc, isGoalAction } from "./rpc.ts"
+import { GoalRpc, isGoalAction, isGoalOrigin, pauseReason, type GoalOrigin } from "./rpc.ts"
 import { goalSystemBlock } from "./prompts.ts"
 import { registerGoalCommand } from "./commands.ts"
 import { registerGoalTools } from "./tools.ts"
@@ -120,11 +120,12 @@ const goalPlugin = {
         return { goals: goals.filter((goal) => goal.status !== "cleared").map((goal) => project(goal, now)) }
       },
       act: async (input, call) => {
-        const raw = input as { sessionID: string; action: string; turns?: number }
+        const raw = input as { sessionID: string; action: string; turns?: number; origin?: unknown }
         if (!isGoalAction(raw.action)) {
           return call.error("unknown_action", `Unknown goal action: ${raw.action}`, { action: raw.action })
         }
-        const result = await performAction(engine, raw.sessionID, raw.action, raw.turns)
+        const origin = isGoalOrigin(raw.origin) ? raw.origin : "external"
+        const result = await performAction(engine, raw.sessionID, raw.action, raw.turns, origin)
         return { goal: result.goal ? project(result.goal, Date.now()) : null, message: result.message }
       },
     })
@@ -240,6 +241,7 @@ async function performAction(
   sessionID: string,
   action: "status" | "pause" | "resume" | "clear" | "budget" | "continue-once",
   turns: number | undefined,
+  origin: GoalOrigin = "external",
 ): Promise<{ goal: Goal | undefined; message: string }> {
   switch (action) {
     case "status": {
@@ -247,7 +249,7 @@ async function performAction(
       return { goal, message: text }
     }
     case "pause":
-      return engine.pause(sessionID, "paused from an external client")
+      return engine.pause(sessionID, pauseReason(origin))
     case "resume": {
       const result = await engine.resume(sessionID)
       if (result.goal?.status === "active" && remainingTurns(result.goal) > 0) await engine.onIdle(sessionID)

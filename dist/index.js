@@ -1299,6 +1299,7 @@ var nullableGoal = {
   anyOf: [{ type: "null" }, goalSchema]
 };
 var actions = ["status", "pause", "resume", "clear", "budget", "continue-once"];
+var origins = ["tui", "external"];
 var GoalRpc = {
   id: "goal",
   methods: {
@@ -1331,7 +1332,8 @@ var GoalRpc = {
         properties: {
           sessionID: { type: "string" },
           action: { type: "string", enum: [...actions] },
-          turns: { type: "number" }
+          turns: { type: "number" },
+          origin: { type: "string", enum: [...origins] }
         },
         required: ["sessionID", "action"],
         additionalProperties: false
@@ -1369,6 +1371,12 @@ var GoalRpc = {
 };
 function isGoalAction(value) {
   return typeof value === "string" && actions.includes(value);
+}
+function isGoalOrigin(value) {
+  return typeof value === "string" && origins.includes(value);
+}
+function pauseReason(origin = "external") {
+  return origin === "tui" ? "paused from the TUI" : "paused from an external client";
 }
 
 // src/parse.ts
@@ -2057,7 +2065,8 @@ var goalPlugin = {
         if (!isGoalAction(raw.action)) {
           return call.error("unknown_action", `Unknown goal action: ${raw.action}`, { action: raw.action });
         }
-        const result = await performAction(engine, raw.sessionID, raw.action, raw.turns);
+        const origin = isGoalOrigin(raw.origin) ? raw.origin : "external";
+        const result = await performAction(engine, raw.sessionID, raw.action, raw.turns, origin);
         return { goal: result.goal ? project(result.goal, Date.now()) : null, message: result.message };
       }
     });
@@ -2140,14 +2149,14 @@ function dispatchEvent(engine, mirror, event) {
     default:
   }
 }
-async function performAction(engine, sessionID, action, turns) {
+async function performAction(engine, sessionID, action, turns, origin = "external") {
   switch (action) {
     case "status": {
       const { goal, text: text2 } = await engine.report(sessionID, { history: true });
       return { goal, message: text2 };
     }
     case "pause":
-      return engine.pause(sessionID, "paused from an external client");
+      return engine.pause(sessionID, pauseReason(origin));
     case "resume": {
       const result = await engine.resume(sessionID);
       if (result.goal?.status === "active" && remainingTurns(result.goal) > 0)

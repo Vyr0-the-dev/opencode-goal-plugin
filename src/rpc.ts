@@ -82,6 +82,16 @@ const nullableGoal = {
 const actions = ["status", "pause", "resume", "clear", "budget", "continue-once"] as const
 
 /**
+ * Who is steering the goal.
+ *
+ * The TUI and every other client share one RPC surface, so without this the
+ * server cannot tell the user's own keypress from a request arriving over HTTP
+ * from a web or IDE client. `external` is the default because a caller that
+ * does not say who it is is, for the ledger's purposes, not the local TUI.
+ */
+const origins = ["tui", "external"] as const
+
+/**
  * The RPC definition, written as a plain object rather than a `Rpc.define(...)`
  * call.
  *
@@ -125,6 +135,7 @@ export const GoalRpc = {
           sessionID: { type: "string" },
           action: { type: "string", enum: [...actions] },
           turns: { type: "number" },
+          origin: { type: "string", enum: [...origins] },
         },
         required: ["sessionID", "action"],
         additionalProperties: false,
@@ -165,6 +176,23 @@ export type GoalAction = (typeof actions)[number]
 
 export function isGoalAction(value: unknown): value is GoalAction {
   return typeof value === "string" && (actions as readonly string[]).includes(value)
+}
+
+export type GoalOrigin = (typeof origins)[number]
+
+export function isGoalOrigin(value: unknown): value is GoalOrigin {
+  return typeof value === "string" && (origins as readonly string[]).includes(value)
+}
+
+/**
+ * The ledger note for a pause.
+ *
+ * The ledger is the audit trail, so it has to name who acted. "An external
+ * client" was technically true of the TUI's own keypress and useless to anyone
+ * reading the history later, which is the only reason the note exists.
+ */
+export function pauseReason(origin: GoalOrigin = "external"): string {
+  return origin === "tui" ? "paused from the TUI" : "paused from an external client"
 }
 
 export const GOAL_STATUS_VALUES: readonly GoalStatus[] = ["active", "paused", "complete", "blocked", "budget", "cleared"]
