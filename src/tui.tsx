@@ -195,14 +195,14 @@ export default {
     }
 
     /**
-     * `/goal` as the user types it.
+     * Answers a goal question from the palette, a keybind, or the panel — the
+     * surfaces that are verified to reach the plugin.
      *
-     * The TUI owns this one. Read-only and lifecycle verbs are answered here,
-     * from the same RPC the dashboard reads, so they appear immediately and cost
-     * nothing. Only a change to the agent's work is handed to the server command.
-     *
-     * `arguments: true` keeps the line in the prompt and hands us the raw text,
-     * which is what lets one entry point serve both kinds of verb.
+     * `/goal` itself is *not* intercepted here. Registering a slash command with
+     * `arguments: true` was tried and measured: the composer still submitted the
+     * line to the server, so the command was listed twice and implied an
+     * interception that never happened. The server command owns `/goal`, and this
+     * path exists so the free, instant answer is still one keystroke away.
      */
     const runGoalSlash = async (raw?: string) => {
       const route = context.ui.router.current()
@@ -276,15 +276,13 @@ export default {
 
     const goalCommands = () => [
       {
-        id: "opencode.goal.slash",
-        title: "Goal",
+        id: "opencode.goal.dashboard",
+        title: "Goal: open dashboard",
         group: "Goal",
-        description: "Set, inspect, or steer the durable goal for this session",
+        description: "Show the active goal, its budget, and its ledger",
         palette: true as const,
         bind: false as const,
-        suggested: true,
-        slash: { name: "goal", aliases: ["goals"], arguments: true as const },
-        run: (input?: string) => void runGoalSlash(input),
+        run: () => void runGoalSlash("status"),
       },
       {
         id: "opencode.goal.panel",

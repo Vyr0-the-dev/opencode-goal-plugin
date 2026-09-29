@@ -108,9 +108,9 @@ beforeEach(() => {
   h = new Harness()
 })
 
-describe("lifecycle verbs cost nothing", () => {
+describe("lifecycle answers must be visible", () => {
   test.each(["/goal", "/goal status", "/goal help", "/goal history", "/goal pause", "/goal clear"])(
-    "%s answers without a model turn",
+    "%s answers without submitting its own turn",
     async (input) => {
       await h.run(input)
       expect(h.turns).toHaveLength(0)
@@ -118,10 +118,18 @@ describe("lifecycle verbs cost nothing", () => {
     },
   )
 
-  test("every answer is recorded without scheduling a turn", async () => {
+  test("by default the answer is scheduled, because an undelivered one is invisible", async () => {
     await h.run("/goal status")
-    expect(h.notices.at(-1)?.resume).toBe(false)
+    expect(h.notices.at(-1)?.resume).toBe(true)
     expect(h.notices.at(-1)?.description).toBe("goal")
+  })
+
+  test("answerLifecycleImmediately:false parks it instead, for a caller that would rather not pay", async () => {
+    const engine = new GoalEngine(h.port, normalizeOptions({ continuationDelayMs: 0 }))
+    const deps: CommandDeps = { ...h.deps, engine, options: normalizeOptions({ answerLifecycleImmediately: false }) }
+    h.notices.length = 0
+    await runGoalCommand(deps, { sessionID: SES, prompt: { text: "/goal status" }, delivery: "steer" })
+    expect(h.notices.at(-1)?.resume).toBe(false)
   })
 
   test("the report for a fresh session is a usable answer", async () => {
@@ -142,12 +150,14 @@ describe("setting a goal", () => {
     expect(h.turns[0]!.text).toContain("cut p95 below 120ms")
   })
 
-  test("the report is shown without a second model turn", async () => {
+  test("the report is shown in the same turn that starts the work", async () => {
     await h.run("/goal ship the parser")
     const report = h.notices.at(-1)
     expect(report?.text).toContain("ship the parser")
     expect(report?.text).toContain("survives compaction")
-    expect(report?.resume).toBe(false)
+    // One activation turn, and the report rides on it rather than needing a
+    // turn of its own.
+    expect(h.turns).toHaveLength(1)
   })
 
   test("--no-start installs without starting a turn", async () => {

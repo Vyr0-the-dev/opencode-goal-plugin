@@ -9,6 +9,6 @@
   "maxNoToolStreak": 2,
   "postLifecycleNotices": true,
   "mirrorToSessionMetadata": true,
-  "answerLifecycleImmediately": false,
+  "answerLifecycleImmediately": true,
   "enabled": true
 }

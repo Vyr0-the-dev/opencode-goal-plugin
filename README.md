@@ -153,29 +153,33 @@ Everything after the objective is optional, and quoting follows shell rules.
 
 ### In the terminal
 
-`/goal` is answered in the TUI itself, so the read-only and lifecycle verbs open a
-dialog immediately and cost nothing. Only input that changes the agent's work —
-an objective, `/goal edit`, `/goal draft` — is handed to the server command, which
-installs the goal and submits the turn that starts the work.
+`/goal` is handled by the server command, so it behaves the same everywhere. A
+lifecycle answer is written to the transcript and the turn that carries it is
+scheduled, which is why the agent answers in the chat rather than in a dialog.
 
 * A `GOAL 3/25` badge appears in the prompt footer.
 * A progress row above the composer shows the title, a bar, and the budget.
 * `ctrl+g` pauses or resumes; `ctrl+g` on a session with no goal shows its status.
-* The command palette has *Goal: open dashboard / status / pause / resume / clear*.
+* The command palette has *Goal: open dashboard / status / pause / resume / clear*,
+  and those answer in a dialog from the same RPC, without a model turn.
 * The dashboard panel (`p` pause, `r` resume, `R` refresh, `c` clear, `f` fullscreen)
   shows the contract, the blocker, and the ledger.
 
-**Outside the terminal** the server command answers on its own, and a plugin has
-no way to render without spending a model turn, so the answer is recorded with
-`resume: false`: durable, free, and delivered with the session's next turn. Set
-`answerLifecycleImmediately: true` to schedule a turn instead and see the reply
-at once. That is the right trade for `opencode run` and for any client that does
-not implement `/goal` itself.
+**Why the answer costs a turn.** A plugin's only way to write into a transcript is
+`session.synthetic`, and on OpenCode 2.0.16 that message is delivered *only* when
+it also schedules a turn. An answer written with `resume: false` is durable and
+free, but it sits in the session inbox until some later turn drains it — so
+`/goal status` would look like it did nothing at all. An answer that is free but
+invisible is worse than one that costs a call, so the default is to schedule it.
+Set `answerLifecycleImmediately: false` to go back to the silent-but-free
+behaviour, or use `ctrl+g` and the palette entries for the free path.
 
-If you find the TUI's `/goal` entry is not intercepting in your client, set that
-flag in `goal.config.local.json` next to the plugin. It overrides
-`goal.config.json`, is gitignored, and keeps machine-specific settings out of
-commits.
+**A note on `/goal` in the composer.** An earlier version registered a TUI slash
+command to intercept `/goal` and answer it in a dialog without a turn. It was
+measured and it does not intercept: the composer still submits the line to the
+server, so the command was listed twice and implied a behaviour that never
+happened. It has been removed rather than left in place. The dialog path still
+exists, reachable from the palette and `ctrl+g`.
 
 ---
 
@@ -249,7 +253,9 @@ anything else is rejected with `unknown_action`.
 ## Configuration
 
 Edit `goal.config.json` next to the plugin, or set `options` on the plugin entry
-in `opencode.json(c)` (that wins over the file).
+in `opencode.json(c)` (that wins over the file). For a machine-specific change,
+put it in `goal.config.local.json` beside the plugin instead: it overrides
+`goal.config.json`, is gitignored, and never ends up in a commit.
 
 | Option | Default | Meaning |
 | --- | --- | --- |
@@ -264,7 +270,7 @@ in `opencode.json(c)` (that wins over the file).
 | `maxNoToolStreak` | `2` | Fruitless turns before the goal is blocked |
 | `postLifecycleNotices` | `true` | Note pauses, budget stops, and blocks in the transcript |
 | `mirrorToSessionMetadata` | `true` | Mirror a summary onto session metadata; verified, and self-disabling if the host ignores it |
-| `answerLifecycleImmediately` | `false` | Make lifecycle answers visible in clients that do not handle `/goal` themselves, at the cost of one model turn |
+| `answerLifecycleImmediately` | `true` | Schedule the turn that carries a lifecycle answer, so it is actually delivered. Set `false` to write it for free but leave it undelivered until the next turn |
 | `commandName` | `"goal"` | Slash command name |
 
 Every option is validated; a bad value falls back to its default rather than

@@ -38,8 +38,13 @@ export interface GoalOptions {
   readonly mirrorToSessionMetadata: boolean
   /**
    * Answer lifecycle verbs by scheduling a turn so the reply appears at once in
-   * any client. Off by default: the TUI answers these locally for free, and a
-   * scheduled turn would spend a model call on saying "goal paused".
+   * any client.
+   *
+   * On by default, and the reason is measured rather than preferred: a plugin has
+   * no way to render anything without spending a turn, and `/goal` in the composer
+   * is handled by the server. An answer that is written but never delivered is
+   * indistinguishable from a command that does nothing at all, which is worse
+   * than one that costs a call. The free path is the palette entry or ctrl+g.
    */
   readonly answerLifecycleImmediately: boolean
 }
@@ -57,7 +62,7 @@ export const DEFAULT_OPTIONS: GoalOptions = {
   maxNoToolStreak: 2,
   postLifecycleNotices: true,
   mirrorToSessionMetadata: true,
-  answerLifecycleImmediately: false,
+  answerLifecycleImmediately: true,
 }
 
 const LIMITS = {
