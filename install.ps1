@@ -12,6 +12,11 @@
   The loader is one line. Move this folder and re-run this script; delete the
   loader to uninstall.
 
+  NOTE: this form gives you the server half only. A bare loader file has no
+  package.json beside it, so the host cannot resolve the ./tui entrypoint and the
+  terminal UI does not load. For that, install the package instead:
+      npx opencode plugin add opencode-goal-plugin
+
 .PARAMETER Force
   Overwrite an existing loader file.
 #>

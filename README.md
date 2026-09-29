@@ -16,16 +16,20 @@ granted.
 
 ## Install
 
-**macOS, Linux, WSL, or Git Bash**
+**As a package** — required for the terminal UI, recommended:
 
 ```sh
-sh install.sh
+npx opencode plugin add opencode-goal-plugin
 ```
 
-**Windows PowerShell**
+**From this folder, server half only:**
+
+```sh
+sh install.sh          # macOS, Linux, WSL, Git Bash
+```
 
 ```powershell
-.\install.ps1
+.\install.ps1          # Windows PowerShell
 ```
 
 Either script writes a one-line loader to `~/.config/opencode/plugins/goal.ts`
@@ -34,13 +38,26 @@ this folder. Both are idempotent: re-running points an existing loader at the ne
 location instead of failing, and refuse to clobber a loader that points somewhere
 else unless you pass `-f` / `--force`. Uninstalling is deleting that one file.
 
-**As a managed package** — no script, and OpenCode keeps it updated:
-
-```sh
-npx opencode plugin add opencode-goal-plugin
-```
-
 `opencode reload` picks up any of these; restarting is not required.
+
+### What the loader file does not give you
+
+A single loader file has no `package.json` beside it, so the host has no exports
+map to resolve the `./tui` entrypoint from, and **the terminal half never loads**.
+This is observable rather than theoretical — the plugin list reports features per
+half, and a loader-installed copy shows `{"server": true}` with no `tui`, while a
+package-installed one shows `{"server": true, "tui": true}`.
+
+You still get everything that matters:
+
+* `/goal` in every client: TUI, web, desktop, IDE extensions, ACP, `opencode run`,
+  mobile, and anything built on the OpenCode API
+* the `goal_create` / `goal_status` / `goal_update` tools for the model
+* the goal RPC for any client that wants to read or steer it
+* the goal contract injected into every model call, and the automatic continuation
+
+What you lose is only the progress row, the badge, the dashboard panel, and the
+`<leader>p` toggle. Install as a package to get those.
 
 The plugin code itself has no platform-specific paths, no OS-gated dependencies,
 and no runtime dependencies at all, so one build serves every platform.

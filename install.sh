@@ -9,8 +9,10 @@
 # Move this folder and re-run to repoint the loader. Delete the loader to
 # uninstall. Pass -f to overwrite a loader that points somewhere else.
 #
-# If you prefer a managed install, `npx opencode plugin add opencode-goal-plugin`
-# installs the same package as a plugin and needs no script at all.
+# NOTE: this form gives you the server half only. A bare loader file has no
+# package.json beside it, so the host cannot resolve the ./tui entrypoint and the
+# terminal UI does not load. For that, install the package instead:
+#     npx opencode plugin add opencode-goal-plugin
 
 set -eu
 
