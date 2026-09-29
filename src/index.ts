@@ -23,6 +23,7 @@ import type { Plugin as GoalPluginDefinition } from "@opencode/plugin/promise/pl
 import type { Context as PluginContext } from "@opencode/plugin/promise/plugin"
 import { GoalEngine, GOAL_METADATA, type GoalPort, type GoalTurnOrigin } from "./engine.ts"
 import { elapsedMs, progressPercent, remainingTurns, type Goal } from "./goal.ts"
+import { GoalMirror } from "./mirror.ts"
 import { normalizeOptions } from "./options.ts"
 import { GoalRpc, isGoalAction } from "./rpc.ts"
 import { goalSystemBlock } from "./prompts.ts"
@@ -50,7 +51,21 @@ const goalPlugin = {
     if (!options.enabled) return
 
     const emitter: Emitter = { emit: async () => undefined }
-    const engine = new GoalEngine(createPort(ctx, emitter), options)
+    const mirror = options.mirrorToSessionMetadata
+      ? new GoalMirror({
+          readMetadata: async (sessionID) => {
+            const info = await ctx.session.get({ sessionID })
+            const metadata = info?.metadata
+            return metadata && typeof metadata === "object" ? (metadata as Record<string, unknown>) : undefined
+          },
+          writeMetadata: async (sessionID, metadata) => {
+            await ctx.session.update({ sessionID, metadata: metadata as Record<string, never> })
+          },
+          warn,
+          now: () => Date.now(),
+        })
+      : undefined
+    const engine = new GoalEngine(createPort(ctx, emitter, mirror), options)
 
     registerGoalTools({ tool: ctx.tool, session: ctx.session, engine, namespace: "goal" })
     registerGoalCommand({ host: { storage: ctx.storage, command: ctx.command, session: ctx.session }, engine, options })
@@ -87,7 +102,7 @@ const goalPlugin = {
     void (async () => {
       try {
         for await (const event of ctx.event.subscribe({ signal: controller.signal })) {
-          dispatchEvent(engine, event as { type?: string; data?: unknown })
+          dispatchEvent(engine, mirror, event as { type?: string; data?: unknown })
         }
       } catch (error) {
         if (!controller.signal.aborted) warn(error)
@@ -164,7 +179,7 @@ async function readFileOptions(): Promise<Record<string, unknown> | undefined> {
   return undefined
 }
 
-function dispatchEvent(engine: GoalEngine, event: { type?: string; data?: unknown }): void {
+function dispatchEvent(engine: GoalEngine, mirror: GoalMirror | undefined, event: { type?: string; data?: unknown }): void {
   const sessionID = readSessionID(event)
   if (!sessionID) return
   switch (event.type) {
@@ -175,6 +190,7 @@ function dispatchEvent(engine: GoalEngine, event: { type?: string; data?: unknow
       void engine.onInterrupted(sessionID).catch(warn)
       return
     case "session.deleted":
+      mirror?.invalidate(sessionID)
       void engine.forget(sessionID).catch(warn)
       return
     case "session.tool.called":
@@ -231,7 +247,7 @@ async function performAction(
 }
 
 /** Narrows the plugin context to exactly what the engine is allowed to touch. */
-function createPort(ctx: PluginContext, emitter: Emitter): GoalPort {
+function createPort(ctx: PluginContext, emitter: Emitter, mirror: GoalMirror | undefined): GoalPort {
   return {
     storage: ctx.storage,
 
@@ -262,6 +278,10 @@ function createPort(ctx: PluginContext, emitter: Emitter): GoalPort {
     },
 
     async changed(goal, sessionID) {
+      // One call site, three channels: the plugin RPC event for clients that
+      // speak it, the session's own metadata for clients that only read a
+      // session list, and the transcript via lifecycle notices.
+      if (mirror) await mirror.publish(sessionID, goal)
       await emitter.emit(sessionID, goal?.status ?? "cleared", goal?.updatedAt ?? Date.now())
     },
 

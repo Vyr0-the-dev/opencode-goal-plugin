@@ -8,5 +8,6 @@
   "maxNotes": 40,
   "maxNoToolStreak": 2,
   "postLifecycleNotices": true,
+  "mirrorToSessionMetadata": true,
   "enabled": true
 }

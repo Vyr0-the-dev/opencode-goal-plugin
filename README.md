@@ -16,21 +16,82 @@ granted.
 
 ## Install
 
-The plugin is loaded by a one-line file in your global plugins directory.
-Run the installer:
+**macOS, Linux, WSL, or Git Bash**
+
+```sh
+sh install.sh
+```
+
+**Windows PowerShell**
 
 ```powershell
 .\install.ps1
 ```
 
-It writes `~/.config/opencode/plugins/goal.ts`, which re-exports the plugin from
-this folder. To move this folder later, delete that file and run `install.ps1`
-again. Uninstalling is deleting the same file.
+Either script writes a one-line loader to `~/.config/opencode/plugins/goal.ts`
+(or `$XDG_CONFIG_HOME/opencode/plugins/goal.ts`) that re-exports the plugin from
+this folder. Both are idempotent: re-running points an existing loader at the new
+location instead of failing, and refuse to clobber a loader that points somewhere
+else unless you pass `-f` / `--force`. Uninstalling is deleting that one file.
 
-`opencode reload` picks up the change; restarting is not required.
+**As a managed package** — no script, and OpenCode keeps it updated:
 
-Prefer npm? The package name is `opencode-goal-plugin` and it works as a normal
-package plugin too.
+```sh
+npx opencode plugin add opencode-goal-plugin
+```
+
+`opencode reload` picks up any of these; restarting is not required.
+
+The plugin code itself has no platform-specific paths, no OS-gated dependencies,
+and no runtime dependencies at all, so one build serves every platform.
+
+## Where it works
+
+The same install works everywhere OpenCode does, because everything that carries
+the goal lives in the server, not in a client.
+
+| Surface | `/goal` command | `goal_*` tools | Goal state | Extra UI |
+| --- | --- | --- | --- | --- |
+| TUI | yes | yes | RPC + transcript | badge, progress row, `ctrl+g`, dashboard |
+| Web app | yes | yes | RPC + transcript | — |
+| Desktop app | yes | yes | RPC + transcript | — |
+| IDE extensions | yes | yes | RPC + transcript | — |
+| ACP clients (Zed, …) | yes | yes | RPC + transcript | — |
+| `opencode run` | yes | yes | RPC + transcript | — |
+| `opencode mini` | yes | yes | RPC + transcript | — |
+| Phone / third-party clients | yes | yes | RPC + transcript | — |
+
+*Transcript* means lifecycle and status answers are written as durable synthetic
+messages, so any client that shows a conversation shows the goal. *RPC* means any
+client built on the OpenCode API can call `goal.get`, `goal.list`, and `goal.act`
+and subscribe to a `changed` event. Read the [RPC section](#rpc) for the client
+code.
+
+The TUI half is additive: it reads the same RPC surface, so it can never disagree
+with what the engine decided.
+
+### Known host limitation (OpenCode 2.0.16)
+
+The plugin also mirrors a compact summary onto each session's own `metadata`, so a
+client that only renders a session list could show the goal. On OpenCode 2.0.16
+the HTTP `PATCH /api/session/{id}` applies that patch but the **plugin API's**
+`session.update` accepts and silently discards it — `update({ title })` persists,
+`update({ metadata })` does not.
+
+The mirror verifies every write by reading it back. When the host drops it, the
+plugin logs one honest warning and stops trying, rather than pretending a goal is
+visible where it is not:
+
+```
+[opencode-goal] goal: this OpenCode version accepts a session metadata patch but
+does not apply it (observed on 2.0.16), so the goal cannot be shown in clients
+that only read session metadata. The transcript and the goal RPC are unaffected.
+```
+
+Nothing else depends on that channel. Set `"mirrorToSessionMetadata": false` to
+skip the attempt and silence the warning. If a future OpenCode wires the write
+through, the channel starts working with no change here.
+
 
 ---
 
@@ -185,6 +246,7 @@ in `opencode.json(c)` (that wins over the file).
 | `maxNotes` | `40` | Ledger entries kept |
 | `maxNoToolStreak` | `2` | Fruitless turns before the goal is blocked |
 | `postLifecycleNotices` | `true` | Note pauses, budget stops, and blocks in the transcript |
+| `mirrorToSessionMetadata` | `true` | Mirror a summary onto session metadata; verified, and self-disabling if the host ignores it |
 | `commandName` | `"goal"` | Slash command name |
 
 Every option is validated; a bad value falls back to its default rather than
@@ -201,6 +263,10 @@ failing the session.
 directory with no installed dependencies, and it is the pattern the shipped
 OpenCode plugins use.
 
+**Nothing is written that was not read first.** The session metadata mirror merges
+into the existing map and never removes a key it does not own, and it verifies its
+own write so a host that drops it is reported rather than assumed to have worked.
+
 **The dispatcher is a pure function.** `decideContinuation` takes observable
 state and returns `continue`, `budget_exhausted`, or `stop` with a reason. No
 I/O, no clock, no plugin context. Every rule — pending input, plan agents,
@@ -214,13 +280,13 @@ a goal that cannot be persisted still works in memory.
 `tool`, `storage`, `session` hooks, the event stream, and plugin RPC. Unknown
 event types are ignored, missing or malformed state is repaired rather than
 thrown, and the lifecycle stops when the plugin unloads. Nothing outside the
-plugin's own storage is ever mutated.
+plugin's own storage and its own metadata key is ever mutated.
 
 ## Development
 
 ```sh
 bun install
-bun test          # 133 tests
+bun test          # 152 tests
 bun run typecheck
 ```
 

@@ -1,7 +1,7 @@
 {
   "name": "opencode-goal-plugin",
-  "version": "1.0.0",
-  "description": "Persistent, evidence-checked goals for OpenCode. Adds the /goal slash command plus goal_create / goal_status / goal_update tools, so both you and the agent itself can drive long-running work until a verifiable stopping condition.",
+  "version": "1.1.0",
+  "description": "Persistent, evidence-checked goals for OpenCode. Adds the /goal slash command plus goal_create / goal_status / goal_update tools, so both you and the agent itself can drive long-running work until a verifiable stopping condition. Works in the TUI, the web and desktop apps, IDE extensions, ACP clients, opencode run, and any client built on the OpenCode API.",
   "type": "module",
   "license": "MIT",
   "keywords": [
@@ -9,25 +9,34 @@
     "opencode-plugin",
     "goal",
     "autonomous",
-    "long-running"
+    "long-running",
+    "agent",
+    "ai"
   ],
   "exports": {
     ".": "./src/index.ts",
-    "./tui": "./src/tui.tsx"
+    "./tui": "./src/tui.tsx",
+    "./rpc": "./src/rpc.ts",
+    "./package.json": "./package.json"
   },
   "main": "./src/index.ts",
   "files": [
     "src",
+    "goal.config.json",
+    "install.sh",
+    "install.ps1",
+    "LICENSE",
     "README.md"
   ],
   "scripts": {
     "typecheck": "tsc --noEmit",
-    "test": "bun test"
-  },
-  "dependencies": {
-    "@opencode/plugin": "^2.0.0"
+    "test": "bun test",
+    "setup": "bun run install:posix || bun run install:win",
+    "install:posix": "sh ./install.sh",
+    "install:win": "powershell -NoProfile -ExecutionPolicy Bypass -File ./install.ps1"
   },
   "devDependencies": {
+    "@opencode/plugin": "^2.0.0",
     "@opentui/core": "^0.5.12",
     "@opentui/solid": "^0.5.12",
     "@types/bun": "latest",

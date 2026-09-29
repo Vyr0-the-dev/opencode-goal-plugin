@@ -30,6 +30,12 @@ export interface GoalOptions {
   readonly maxNoToolStreak: number
   /** Post a short transcript note when the goal pauses, hits its budget, or blocks. */
   readonly postLifecycleNotices: boolean
+  /**
+   * Mirror a goal summary onto the session's own metadata, so clients that only
+   * render a session list can show it. Verified on every write; turns itself off
+   * and warns if the host ignores the patch.
+   */
+  readonly mirrorToSessionMetadata: boolean
 }
 
 export const DEFAULT_OPTIONS: GoalOptions = {
@@ -44,6 +50,7 @@ export const DEFAULT_OPTIONS: GoalOptions = {
   maxNotes: 40,
   maxNoToolStreak: 2,
   postLifecycleNotices: true,
+  mirrorToSessionMetadata: true,
 }
 
 const LIMITS = {
@@ -111,5 +118,6 @@ export function normalizeOptions(raw: unknown): GoalOptions {
     maxNotes: int(input.maxNotes, LIMITS.maxNotes, DEFAULT_OPTIONS.maxNotes),
     maxNoToolStreak: int(input.maxNoToolStreak, LIMITS.maxNoToolStreak, DEFAULT_OPTIONS.maxNoToolStreak),
     postLifecycleNotices: bool(input.postLifecycleNotices, DEFAULT_OPTIONS.postLifecycleNotices),
+    mirrorToSessionMetadata: bool(input.mirrorToSessionMetadata, DEFAULT_OPTIONS.mirrorToSessionMetadata),
   }
 }
