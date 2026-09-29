@@ -748,7 +748,11 @@ ${ledger}` : ""}`,
     if (!updated)
       return { goal: undefined, message: NO_GOAL_REPORT };
     await this.#port.changed(updated, sessionID);
-    return { goal: updated, message: `Recorded (${updated.notes.length} ledger entr${updated.notes.length === 1 ? "y" : "ies"}). ${remainingTurns(updated)} automatic turns left.` };
+    const entries = `Recorded (${updated.notes.length} ledger entr${updated.notes.length === 1 ? "y" : "ies"})`;
+    if (isTerminal(updated.status)) {
+      return { goal: updated, message: `${entries} on a ${updated.status} goal. It is not active and will not continue on its own.` };
+    }
+    return { goal: updated, message: `${entries}. ${remainingTurns(updated)} automatic turns left.` };
   }
   async recordComplete(sessionID, input) {
     const summary = trimText(input.summary);
@@ -1710,7 +1714,7 @@ async function runGoalCommand(deps, invocation) {
       }
       case "clear": {
         const result = await engine.clear(sessionID);
-        return report(deps, sessionID, result.message);
+        return report(deps, sessionID, result.message, false);
       }
       case "budget": {
         const result = await engine.setBudget(sessionID, parsed.value);
@@ -1783,14 +1787,14 @@ Installed without starting a turn. Run \`/goal resume\` when you want the agent 
 function remainingTurnsOf(goal) {
   return Math.max(0, goal.budget.maxTurns - goal.budget.usedTurns);
 }
-async function report(deps, sessionID, text) {
+async function report(deps, sessionID, text, wake = deps.options.answerLifecycleImmediately) {
   try {
     await deps.host.session.synthetic({
       sessionID,
       text,
       description: "goal",
       delivery: "queue",
-      resume: deps.options.answerLifecycleImmediately,
+      resume: wake,
       metadata: { [GOAL_METADATA]: "notice" }
     });
   } catch (error) {
