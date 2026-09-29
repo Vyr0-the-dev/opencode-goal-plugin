@@ -167,19 +167,18 @@ async function readFileOptions(): Promise<Record<string, unknown> | undefined> {
   }
   // `src/` when run directly, the package root otherwise.
   const dirs = [here, join(here, "..")]
-  // A local override wins, so a machine-specific setting never dirties the
-  // shipped defaults or ends up in a commit.
-  const names = ["goal.config.local.json", "goal.config.json"]
-  let merged: Record<string, unknown> = {}
-  let found = false
+  // Ascending precedence: the shipped defaults first, the local override last,
+  // so a machine-specific setting wins. Reading them the other way round makes
+  // goal.config.json silently clobber goal.config.local.json.
+  const names = ["goal.config.json", "goal.config.local.json"]
+  const found: Record<string, unknown>[] = []
   for (const name of names) {
     for (const dir of dirs) {
       try {
         const text = await readFile(join(dir, name), "utf8")
         const parsed: unknown = JSON.parse(text)
         if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
-          merged = { ...merged, ...(parsed as Record<string, unknown>) }
-          found = true
+          found.push(parsed as Record<string, unknown>)
         }
         break
       } catch {
@@ -187,7 +186,18 @@ async function readFileOptions(): Promise<Record<string, unknown> | undefined> {
       }
     }
   }
-  return found ? merged : undefined
+  return found.length > 0 ? mergeOptionSources(found) : undefined
+}
+
+/**
+ * Merges option sources given in ascending precedence: later wins, key by key.
+ *
+ * Exported so the precedence rule is covered by a test. It was wrong once —
+ * the local override was read first and the shipped file overwrote it — and no
+ * type check or behavioural test noticed, because nothing exercised the order.
+ */
+export function mergeOptionSources(sources: readonly Record<string, unknown>[]): Record<string, unknown> {
+  return Object.assign({}, ...sources)
 }
 
 function dispatchEvent(engine: GoalEngine, mirror: GoalMirror | undefined, event: { type?: string; data?: unknown }): void {
