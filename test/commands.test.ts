@@ -132,6 +132,25 @@ describe("lifecycle answers must be visible", () => {
     expect(h.notices.at(-1)?.resume).toBe(false)
   })
 
+  test("clearing a goal does not wake the session", async () => {
+    await h.run("/goal ship the thing")
+    h.notices.length = 0
+    await h.run("/goal clear")
+    // Recorded, so the transcript still shows what happened, but nothing resumes:
+    // after a teardown there is no work for a model turn to do.
+    expect(h.notices.at(-1)?.text).toContain("Goal cleared")
+    expect(h.notices.at(-1)?.resume).toBe(false)
+  })
+
+  test("a clear confirmation costs no model turn", async () => {
+    await h.run("/goal ship the thing")
+    const before = h.turns.length
+    await h.run("/goal clear")
+    // The set submitted a turn; the clear must not add one. This is the whole
+    // point - a teardown that answers the user by spending a model turn.
+    expect(h.turns.length).toBe(before)
+  })
+
   test("the report for a fresh session is a usable answer", async () => {
     await h.run("/goal")
     expect(h.notices.at(-1)?.text).toContain("No goal is active")

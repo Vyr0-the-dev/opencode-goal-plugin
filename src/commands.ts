@@ -88,7 +88,7 @@ export async function runGoalCommand(deps: CommandDeps, invocation: Invocation):
 
       case "clear": {
         const result = await engine.clear(sessionID)
-        return report(deps, sessionID, result.message)
+        return report(deps, sessionID, result.message, false)
       }
 
       case "budget": {
@@ -185,15 +185,27 @@ function remainingTurnsOf(goal: Goal): number {
  * the one command a user reaches for most. The TUI intercepts these verbs and
  * shows a dialog instead; `answerLifecycleImmediately` is the escape hatch for
  * clients that do not, and it costs one model turn to become visible.
+ *
+ * `wake` overrides that default for the one verb that should not cost a turn.
+ * `/goal clear` passes false: the user just ran the command, so the confirmation
+ * is a courtesy, and after a teardown there is nothing left for a model to do.
+ * Resuming a session to announce the removal of something the user just removed
+ * spends a turn to deliver nothing they do not already know. The message is
+ * still recorded, so the transcript shows what happened.
  */
-async function report(deps: CommandDeps, sessionID: string, text: string): Promise<void> {
+async function report(
+  deps: CommandDeps,
+  sessionID: string,
+  text: string,
+  wake: boolean = deps.options.answerLifecycleImmediately,
+): Promise<void> {
   try {
     await deps.host.session.synthetic({
       sessionID,
       text,
       description: "goal",
       delivery: "queue",
-      resume: deps.options.answerLifecycleImmediately,
+      resume: wake,
       metadata: { [GOAL_METADATA]: "notice" },
     })
   } catch (error) {
