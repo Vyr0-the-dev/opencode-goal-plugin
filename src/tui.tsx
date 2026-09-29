@@ -389,6 +389,15 @@ export default {
       },
     })
 
+    /**
+     * The real binding, read from the keymap rather than written here, so the
+     * hint stays correct when the user reassigns the command in `cli.json`.
+     */
+    const toggleHint = (): string => {
+      const keys = context.keymap.shortcuts("opencode.goal.toggle")
+      return keys.length > 0 ? keys.join(" or ") : "/goal"
+    }
+
     // A progress row above the composer: the Codex-style "what is this run for".
     const releaseComposer = context.ui.slot({
       append: "session.composer.top",
@@ -409,10 +418,10 @@ export default {
                   {current().title}
                 </text>
                 <Show when={current().status === "active"}>
-                  <text fg={context.theme.text.dim}>· /goal pause</text>
+                  <text fg={context.theme.text.dim}>· {toggleHint()} pause</text>
                 </Show>
                 <Show when={current().status !== "active" && current().status !== "complete"}>
-                  <text fg={context.theme.text.dim}>· /goal resume</text>
+                  <text fg={context.theme.text.dim}>· {toggleHint()} resume</text>
                 </Show>
               </box>
             )}
@@ -452,7 +461,9 @@ export default {
               group: "Goal",
               description: "Toggle the active goal, or show its status when there is none",
               palette: true as const,
-              bind: false as const,
+              // <leader> is ctrl+x by default. This letter is free; every other
+              // ctrl+ and <leader>+ key in the host's table is already taken.
+              bind: "<leader>p" as const,
               run: () => {
                 const route = context.ui.router.current()
                 if (route.type !== "session") return

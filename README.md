@@ -165,17 +165,18 @@ scheduled, which is why the agent answers in the chat rather than in a dialog.
 * The dashboard panel (`p` pause, `r` resume, `R` refresh, `c` clear, `f` fullscreen)
   shows the contract, the blocker, and the ledger.
 
-**No keybind is claimed, on purpose.** An earlier version bound `ctrl+g`, which
-turned out to be OpenCode's own `session.first` — the host won, the plugin lost,
-and pressing it scrolled the transcript instead of opening a goal dialog. Almost
-every `ctrl+` key in the host's table is already assigned, so a hardcoded binding
-is a guess that fails silently. The palette entries are the supported path; to get
-a key, assign the command ID in `cli.json`:
+**Keybind: `ctrl+x` then `p`.** That is `<leader>p`. The choice is deliberate: an
+earlier version bound `ctrl+g`, which turned out to be OpenCode's own
+`session.first` — the host won, the plugin lost, and pressing it scrolled the
+transcript instead of opening a goal dialog. Almost every `ctrl+` and `<leader>+`
+key in the host's table is already assigned, so a binding has to be picked against
+that table rather than guessed. The palette entries work regardless. To change the
+key, assign the command ID in `cli.json`:
 
 ```json title="~/.config/opencode/cli.json"
 {
   "keybinds": {
-    "opencode.goal.toggle": "<leader>g"
+    "opencode.goal.toggle": "<leader>o"
   }
 }
 ```
