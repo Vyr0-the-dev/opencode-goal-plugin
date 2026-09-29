@@ -32,13 +32,20 @@ $pluginRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
 $bunCmd = Get-Command bun -ErrorAction SilentlyContinue
 if ($bunCmd) {
   Push-Location $pluginRoot
+  # bun reports its build banner on stderr. With ErrorActionPreference Stop that
+  # surfaces as a NativeCommandError, so a successful build would abort the
+  # install. Relax the preference for this one call and judge it by the exit code.
+  $prevPref = $ErrorActionPreference
+  $ErrorActionPreference = "Continue"
   try {
-    & bun run build | Out-Null
-    if ($LASTEXITCODE -ne 0) {
-      Write-Warning "bun run build failed; installing the existing dist anyway."
-    }
+    & bun run build *>&1 | Out-Null
+    $buildExit = $LASTEXITCODE
   } finally {
+    $ErrorActionPreference = $prevPref
     Pop-Location
+  }
+  if ($buildExit -ne 0) {
+    Write-Warning "bun run build failed (exit $buildExit); installing the existing dist anyway."
   }
 } else {
   Write-Warning "bun was not found on PATH; installing the existing dist. Run 'bun run build' first if your source is newer."
