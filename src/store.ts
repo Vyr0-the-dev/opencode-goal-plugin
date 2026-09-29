@@ -33,16 +33,31 @@ export class GoalStore {
     return `${PREFIX}${sessionID}`
   }
 
+  /**
+   * Reads the goal, preferring storage over the cache.
+   *
+   * The cache is a fallback for when storage cannot be reached, not the primary
+   * source. Serving a cached read unconditionally is wrong here: a plugin reload
+   * or a second process means another writer can update the same record, and an
+   * instance that cached a pre-write snapshot keeps serving it forever. That was
+   * observed live - a goal reported 0/4 turns used while the instance that
+   * dispatched the continuation had already written 1/4. A storage read is a
+   * single key lookup, so correctness is worth more here than saving it.
+   */
   async read(sessionID: string): Promise<Goal | undefined> {
-    const cached = this.#cache.get(sessionID)
-    if (cached) return cached
     try {
       const raw = await this.#storage.get(this.key(sessionID))
       const goal = reviveGoal(raw)
-      if (goal) this.#cache.set(sessionID, goal)
-      return goal
+      if (goal) {
+        this.#cache.set(sessionID, goal)
+        return goal
+      }
+      // Storage has no record. An in-memory copy still counts, because a failed
+      // write leaves that copy as the only one - dropping it here would lose the
+      // goal outright.
+      return this.#cache.get(sessionID)
     } catch {
-      return undefined
+      return this.#cache.get(sessionID)
     }
   }
 
