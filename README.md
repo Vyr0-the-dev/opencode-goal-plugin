@@ -259,6 +259,15 @@ otomatik olarak yürütür.
 
 ---
 
+## Ek Dokümantasyon
+
+* **Model & Sağlayıcı Uyumluluğu:** [`docs/providers.md`](docs/providers.md) (Claude, GPT, DeepSeek, Qwen ve katı şablonlu yerel LLM modelleri)
+* **Uyumluluk Politikası:** [`docs/compatibility.md`](docs/compatibility.md) (Desteklenen çalışma zamanları, paket önbellekleme ve platform matrisi)
+* **Güvenlik Politikası:** [`SECURITY.md`](SECURITY.md) (Güvenlik mimarisi, tehdit modeli ve güvenlik açığı bildirme süreci)
+
+---
+
 ## Lisans
 
 MIT
+
