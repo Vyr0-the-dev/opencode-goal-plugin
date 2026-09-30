@@ -1,5 +1,9 @@
 # opencode-goal-plugin
 
+[![CI](https://github.com/Vyr0-the-dev/opencode-goal-plugin/actions/workflows/ci.yml/badge.svg)](https://github.com/Vyr0-the-dev/opencode-goal-plugin/actions/workflows/ci.yml)
+[![CodeQL](https://github.com/Vyr0-the-dev/opencode-goal-plugin/actions/workflows/codeql.yml/badge.svg)](https://github.com/Vyr0-the-dev/opencode-goal-plugin/actions/workflows/codeql.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+
 Persistent, evidence-checked goals for OpenCode — the `/goal` feature.
 
 A prompt asks for one result and waits. A **goal** gives the agent one durable
@@ -13,9 +17,9 @@ goal, and a goal never widens the authority your permissions already granted.
 
 ---
 
-## Kurulum (Installation)
+## Installation
 
-### macOS, Linux, WSL ve Git Bash (POSIX)
+### macOS, Linux, WSL, and Git Bash (POSIX)
 ```sh
 sh install.sh
 ```
@@ -30,55 +34,55 @@ sh install.sh
 install.cmd
 ```
 
-Her installer scripti paketi global OpenCode eklentiler dizinine (`~/.config/opencode/plugins/opencode-goal-plugin` veya `$XDG_CONFIG_HOME/opencode/plugins/...`) kurar, TUI bağımlılıklarını (`solid-js`, `@opentui/*`) OpenCode yapılandırmasının `node_modules` dizinine kopyalar ve eski tek dosyalık loader kalıntılarını temizler.
+Each installer script deploys the package into the global OpenCode plugins directory (`~/.config/opencode/plugins/opencode-goal-plugin` or `$XDG_CONFIG_HOME/opencode/plugins/...`), copies frontend dependencies (`solid-js`, `@opentui/*`) into the OpenCode configuration's `node_modules`, and cleans up any legacy single-file loader artifacts.
 
-Yeniden çalıştırmak kopyayı tazeler; dizini silmek eklentiyi kaldırır. `opencode reload` ile sunucu yarısı, TUI'yi yeniden başlatınca terminal yarısı yüklenir.
+Re-running refreshes the copy; deleting the directory uninstalls the plugin. `opencode reload` reloads the server half; restarting the TUI reloads the terminal half.
 
-### Neden Bir Dizin Olarak Kurulur?
+### Why Install as a Directory?
 
-OpenCode bir eklenti paketinin `exports` hedeflerini **paket köküne göre** çözümler. Bu mimari nedeniyle:
-* Tek dosyalık bir loader (`goal.ts`) sadece sunucu yarısını yükleyebilir; yanındaki paket haritası olmadığı için host `./tui` hedefini çözümleyemez ve terminal arayüzü sessizce devre dışı kalır.
-* Entrypoint'leri doğrudan `./src` veya `./dist` altında olan paketler host tarafından atlanır.
+OpenCode resolves a plugin package's `exports` targets **relative to the package root**. Because of this architecture:
+* A single loader file (`goal.ts`) can only load the server half; without an adjacent package map, the host cannot resolve `./tui` and the terminal interface remains silently disabled.
+* Packages whose entrypoints reside solely under `./src` or `./dist` without root exports are skipped by the host.
 
-Bu nedenle eklenti kök dizininde `index.js`, `tui.tsx` ve `rpc.ts` re-export shim dosyaları yer alır.
+Therefore, the package root maintains `index.js`, `tui.tsx`, and `rpc.ts` re-export shims.
 
-Eklentinin devrede olduğunu doğrulamak için:
+To verify that the plugin is active:
 ```sh
 opencode api get /api/plugin
 ```
-`opencode.goal` girdisinin `{"server": true, "tui": true, "rpc": true}` döndüğünü doğrulayabilirsiniz.
+Verify that the `opencode.goal` entry reports `{"server": true, "tui": true, "rpc": true}`.
 
 ---
 
-## Desteklenen Ortamlar ve Platformlar
+## Supported Environments & Platforms
 
-Eklentinin durum ve kontrol mantığı sunucu tarafında çalıştığı için OpenCode'un desteklediği tüm istemcilerde tutarlı çalışır:
+Because status and control logic operate server-side, behavior remains consistent across all clients supported by OpenCode:
 
-| Ortam / Arayüz | `/goal` Komutu | `goal_*` Araçları | Durum Takibi | Ek Terminal UI |
+| Environment / Interface | `/goal` Command | `goal_*` Tools | Status Tracking | Terminal UI |
 | --- | --- | --- | --- | --- |
-| **OpenCode TUI** | Evet | Evet | RPC + Transkript | Durum rozeti, ilerleme çubuğu, dashboard panel (`<leader>p`), klavye katmanı |
-| **Web Arayüzü** | Evet | Evet | RPC + Transkript | — |
-| **Masaüstü Uygulaması** | Evet | Evet | RPC + Transkript | — |
-| **IDE Eklentileri (VS Code, Cursor)** | Evet | Evet | RPC + Transkript | — |
-| **ACP İstemcileri (Zed, vb.)** | Evet | Evet | RPC + Transkript | — |
-| **`opencode run` (Headless/CI)** | Evet | Evet | RPC + Transkript | Non-interactive ve TTY fallback |
-| **`opencode mini`** | Evet | Evet | RPC + Transkript | — |
-| **Üçüncü Parti API İstemcileri** | Evet | Evet | RPC + Transkript | — |
+| **OpenCode TUI** | Yes | Yes | RPC + Transcript | Status badge, progress bar, dashboard panel (`<leader>p`), keybind overlay |
+| **Web UI** | Yes | Yes | RPC + Transcript | — |
+| **Desktop App** | Yes | Yes | RPC + Transcript | — |
+| **IDE Extensions (VS Code, Cursor)** | Yes | Yes | RPC + Transcript | — |
+| **ACP Clients (Zed, etc.)** | Yes | Yes | RPC + Transcript | — |
+| **`opencode run` (Headless/CI)** | Yes | Yes | RPC + Transcript | Non-interactive & TTY fallback |
+| **`opencode mini`** | Yes | Yes | RPC + Transcript | — |
+| **Third-Party API Clients** | Yes | Yes | RPC + Transcript | — |
 
-### Platformlar ve Shell Desteği
-* **İşletim Sistemleri:** macOS (Intel/Apple Silicon), Linux (x64/arm64), Windows 10/11 (x64/arm64)
-* **Shell'ler:** Bash, Zsh, Fish, PowerShell 5.1/7+, Windows Command Prompt (`cmd.exe`)
-* **Terminal Uyumluluğu:**
-  - Modern terminaller (Windows Terminal, iTerm2, WezTerm, Alacritty, VS Code Terminal): Tam Unicode blok karakterleri (`█` / `─`).
-  - Sınırlı / Eski terminaller (`TERM=dumb`, legacy console): Otomatik ASCII fallback (`#` / `-`).
-  - Dar terminaller (< 70 sütun): Kompakt composer satırı ve dinamik daraltılmış ilerleme çubuğu.
-  - CI / Pipe / Non-interactive: `NO_COLOR` standartlarına tam uyum ve kontrollü loglama (ekran bozulmasını engelleme).
+### Platform & Shell Compatibility
+* **Operating Systems:** macOS (Intel/Apple Silicon), Linux (x64/arm64), Windows 10/11 (x64/arm64)
+* **Shells:** Bash, Zsh, Fish, PowerShell 5.1/7+, Windows Command Prompt (`cmd.exe`)
+* **Terminal Capabilities:**
+  - Modern terminals (Windows Terminal, iTerm2, WezTerm, Alacritty, VS Code Terminal): Full Unicode block characters (`█` / `─`).
+  - Restricted / Legacy terminals (`TERM=dumb`, legacy console): Automatic ASCII fallback (`#` / `-`).
+  - Narrow terminals (< 70 columns): Compact composer header and dynamically clamped progress bars.
+  - CI / Pipe / Non-interactive: Full compliance with the `NO_COLOR` standard and controlled logger routing (preventing TUI screen corruption).
 
 ---
 
-## Kullanım Rehberi
+## Usage Guide
 
-### Temel Komut
+### Basic Command
 ```
 /goal Reduce p95 checkout latency below 120 ms, verified by the checkout
       benchmark, while keeping the correctness suite green. Use only the
@@ -87,59 +91,59 @@ Eklentinin durum ve kontrol mantığı sunucu tarafında çalıştığı için O
       cannot run, stop and report the blocker.
 ```
 
-Bu metin hem görevi hem de tamamlanma koşulunu (finish line) belirler. Oturum boşta kaldığında hedef aktif ve bütçe dahilindeyse ajan otomatik olarak uyandırılır, kanıtları denetler ve bir sonraki adımı yürütür.
+This text defines both the objective and the completion condition (finish line). When the session goes idle and a goal is active within budget, the agent automatically continues, audits the evidence, and performs the next action.
 
-### Komut Tablosu
+### Command Reference
 
-| Komut | Açıklama |
+| Command | Description |
 | --- | --- |
-| `/goal <hedef>` | Hedefi başlatır (veya değiştirir) ve çalışmaya başlar |
-| `/goal` veya `/goal status` | Mevcut hedefi, sözleşmeyi, kalan bütçeyi ve defteri gösterir |
-| `/goal pause` (veya `stop`) | Döngüyü duraklatır; hedef metni ve ilerleme korunur |
-| `/goal resume` (veya `continue`) | Duraklatılmış hedefi kaldığı yerden devam ettirir |
-| `/goal clear` (veya `reset`) | Hedefi oturumdan tamamen kaldırır |
-| `/goal history` | İlerleme defterini (ledger) ve durum geçişlerini listeler |
-| `/goal edit <yeni metin>` | Hedef sözleşmesini koruyarak sadece hedef cümlesini günceller |
-| `/goal budget <sayı>` | Otomatik tur bütçesini günceller |
-| `/goal draft <konu>` | Modellerin güçlü bir hedef sözleşmesi taslağı yazmasını sağlar |
-| `/goal help` | Yardım ve kullanım detaylarını listeler |
+| `/goal <objective>` | Activates (or replaces) the goal and begins work |
+| `/goal` or `/goal status` | Shows current goal, contract, remaining budget, and ledger |
+| `/goal pause` (or `stop`) | Pauses the loop; preserves objective and progress |
+| `/goal resume` (or `continue`) | Resumes a paused goal |
+| `/goal clear` (or `reset`) | Clears the goal from the session |
+| `/goal history` | Lists progress ledger and state transitions |
+| `/goal edit <new objective>` | Updates the objective text while preserving contract flags |
+| `/goal budget <number>` | Adjusts the automatic turn budget |
+| `/goal draft <subject>` | Requests the model to draft a strong goal contract |
+| `/goal help` | Displays help and usage details |
 
-Bir yaşam döngüsü kelimesi (`pause`, `stop`, `clear`, vb.) yalnızca girdinin **tamamı** olduğunda komut sayılır. Bu sayede hedef metniniz herhangi bir kelimeyle başlayabilir:
+A lifecycle keyword (`pause`, `stop`, `clear`, etc.) is treated as a command only when it constitutes the **entire** input line. This allows objectives to naturally start with those words:
 ```
-/goal stop the flaky checkout test     <- Yeni hedef başlatır
-/goal stop                             <- Mevcut hedefi duraklatır
+/goal stop the flaky checkout test     <- Starts a new goal
+/goal stop                             <- Pauses the current goal
 ```
 
-### Sözleşme Bayrakları (Flags)
+### Contract Flags
 
-| Bayrak | Anlamı |
+| Flag | Meaning |
 | --- | --- |
-| `--turns N` | Otomatik tur bütçesi (varsayılan: 25) |
-| `--minutes N` | Duvar saati tavan süresi (dakika, varsayılan: 180) |
-| `--verify "…"` | Doğrulama yüzeyi: sonucu kanıtlayan test, benchmark veya komut |
-| `--constraints "…"` | Gerilememesi (regress etmemesi) gereken kriterler |
-| `--boundaries "…"` | Kapsam dahilindeki dosya, servis veya veri sınırları |
-| `--iterate "…"` | Her denemeden sonraki adım seçim kuralı |
-| `--blocked "…"` | Hangi koşulda devam etmeyip kullanıcıya rapor verileceği |
-| `--no-start` | Hedefi oturuma kurar ancak hemen bir model turu başlatmaz |
-| `--no-continue` | Hedefi aktif kurar ancak otomatik devam etmesini engeller |
+| `--turns N` | Automatic turn budget (default: 25) |
+| `--minutes N` | Wall-clock time ceiling in minutes (default: 180) |
+| `--verify "…"` | Verification surface: test, benchmark, or command proving completion |
+| `--constraints "…"` | Invariants that must not regress |
+| `--boundaries "…"` | Scoped files, services, or data limits |
+| `--iterate "…"` | Rule for choosing next action after each attempt |
+| `--blocked "…"` | Condition under which to stop and report a blocker |
+| `--no-start` | Installs the goal into session state without starting a turn immediately |
+| `--no-continue` | Installs active goal but prevents automatic continuation |
 
 ---
 
-## Terminal ve TUI Davranışı
+## Terminal & TUI Experience
 
-1. **Footer Rozeti:** Prompt'un sağ alt footer alanında canlı durum: `GOAL 3/25`.
-2. **Composer Üstü Satırı:**
-   - Geniş ekran: `GOAL [██████──────] 3/25 turns · 12m/3h · Hedef Başlığı · <leader>p pause`
-   - Dar ekran (< 70 sütun): `GOAL [███---] 3/25t · Hedef Başlığı`
-   - ASCII terminaller: `GOAL [######------]`
-3. **Dashboard Paneli (`<leader>p` veya komut paletinden *Goal: open dashboard*):**
-   - `p`: Duraklat (pause)
-   - `r`: Devam et (resume)
-   - `R`: Yenile (refresh)
-   - `c`: Hedefi temizle (clear)
-   - `f`: Tam ekran aç/kapat (fullscreen)
-4. **Klavye Kısayolu:** Varsayılan `<leader>p` (`ctrl+x` ardından `p`). `cli.json` dosyasında özelleştirilebilir:
+1. **Footer Badge:** Live status displayed on the bottom-right footer of the prompt: `GOAL 3/25`.
+2. **Composer Header:**
+   - Wide terminal: `GOAL [██████──────] 3/25 turns · 12m/3h · Goal Title · <leader>p pause`
+   - Narrow terminal (< 70 cols): `GOAL [███---] 3/25t · Goal Title`
+   - ASCII terminal: `GOAL [######------]`
+3. **Dashboard Panel (`<leader>p` or Command Palette -> *Goal: open dashboard*):**
+   - `p`: Pause
+   - `r`: Resume
+   - `R`: Refresh
+   - `c`: Clear
+   - `f`: Toggle fullscreen
+4. **Keybind:** Default `<leader>p` (`ctrl+x` followed by `p`). Customizable in `cli.json`:
    ```json
    {
      "keybinds": {
@@ -150,19 +154,19 @@ Bir yaşam döngüsü kelimesi (`pause`, `stop`, `clear`, vb.) yalnızca girdini
 
 ---
 
-## Model Araçları (Model-facing Tools)
+## Model-Facing Tools
 
-Model long-running hedefleri şu araçlarla yönlendirir:
+OpenCode drives long-running goals through canonical tools:
 
-* `goal_create`: Kullanıcı hedefi sohbet içinde tarif ettiğinde model tarafından hedefi oluşturmak için kullanılır.
-* `goal_status`: Aktif hedefi, kalan bütçeyi ve son adımları okur (salt okunur).
-* `goal_update`: İlerlemeyi kaydeder (`working`), kanıt sunarak tamamlar (`complete`), veya engel durumunu bildirir (`blocked`). Kanıt olmadan tamamlama veya engel sebebi belirtilmeden bloklama reddedilir.
+* `goal_create`: Used by the model when the user describes an objective in chat.
+* `goal_status`: Reads active goal, remaining budget, and recent ledger entries (read-only).
+* `goal_update`: Records progress (`working`), completes with verifiable evidence (`complete`), or reports a blocker (`blocked`). Completion without evidence or blocking without reason is rejected.
 
 ---
 
-## RPC Arayüzü
+## RPC Interface
 
-Eklenti, tüm istemcilerin hedefi yönetebilmesi için standart bir RPC arayüzü sunar:
+The plugin exposes a typed RPC surface for external clients:
 
 ```ts
 import { OpenCode } from "@opencode/client"
@@ -171,23 +175,23 @@ import { GoalRpc } from "opencode-goal-plugin/rpc"
 const client = OpenCode.make({ baseUrl: "http://localhost:4096" })
 const api = client.rpc(GoalRpc)
 
-// Hedef durumunu oku
+// Read goal state
 const status = await api.get({ sessionID: "ses_123" })
 
-// Hedefi duraklat veya devam ettir
+// Pause or resume goal
 await api.act({ sessionID: "ses_123", action: "pause", origin: "external" })
 
-// Değişiklikleri dinle
+// Subscribe to events
 api.events.on("changed", (event) => {
-  console.log(`Oturum ${event.data.sessionID} durumu: ${event.data.status}`)
+  console.log(`Session ${event.data.sessionID} status: ${event.data.status}`)
 })
 ```
 
 ---
 
-## Konfigürasyon (`goal.config.json`)
+## Configuration (`goal.config.json`)
 
-Seçenekler `goal.config.json` dosyasından veya yerel override için `goal.config.local.json` dosyasından okunur. Ayrıca `opencode.json(c)` içindeki plugin `options` alanı en yüksek önceliğe sahiptir.
+Options are loaded from `goal.config.json` or `goal.config.local.json` for local overrides. Options declared under `opencode.json(c)` plugins take highest precedence.
 
 ```json
 {
@@ -209,65 +213,65 @@ Seçenekler `goal.config.json` dosyasından veya yerel override için `goal.conf
 
 ---
 
-## Geliştirme, Test ve Kalite Kontrolleri
+## Development, Testing & Quality Checks
 
-Projede Bun ve TypeScript kullanılmaktadır.
+The codebase uses Bun and TypeScript:
 
 ```sh
-# Bağımlılıkları yükle
+# Install dependencies
 bun install
 
-# Tip kontrolü (TypeScript strict mode)
+# Typecheck (TypeScript strict mode)
 bun run typecheck
 
-# Lint kontrolü
+# Lint check
 bun run lint
 
-# Birim, entegrasyon ve terminal testleri (258+ test)
+# Unit, integration, and terminal tests (258+ tests)
 bun test
 
-# Dağıtım ve paketleme smoke testleri
+# Distribution & smoke tests
 bun run smoke
 
-# Sunucu bundle'ını derle
+# Build server bundle
 bun run build
 
-# Tüm yayın öncesi adımları doğrula
+# Validate all prepublish steps
 bun run prepublishOnly
 ```
 
-### CI/CD Doğrulaması
-GitHub Actions iş akışı (`.github/workflows/ci.yml`), Ubuntu, macOS ve Windows runner'ları üzerinde:
-- Bağımlılık kurulumu
+### CI/CD Verification
+GitHub Actions (`.github/workflows/ci.yml`) runs across Ubuntu, macOS, and Windows runners:
+- Dependency installation
 - Typecheck & Lint
-- Test paketinin tamamı
-- Build derlemesi
-- Smoke testleri
-- `npm pack --dry-run` paketleme denetimini
-otomatik olarak yürütür.
+- Full test matrix
+- Build compilation
+- Smoke tests
+- `npm pack --dry-run` package verification
 
 ---
 
-## Bilinen Sınırlamalar ve Sorun Giderme
+## Known Limitations & Troubleshooting
 
-1. **Session Metadata Yansıtma (OpenCode 2.0.16):**
-   - OpenCode 2.0.16 sürümünde `session.update({ metadata })` çağrısı host tarafından sessizce göz ardı edilebilir. Eklenti her yazmayı doğrulayarak test eder; desteklenmiyorsa bir uyarı verip bu kanalı kapatır. Transkript ve RPC kanalları bu durumdan etkilenmez. Uyarıyı kapatmak için `"mirrorToSessionMetadata": false` yapabilirsiniz.
-2. **Karakter Kodlama / Garip Karakter Sorunları:**
-   - Eski Windows cmd konsollarında blok karakterler düzgün görünmüyorsa terminal Unicode desteklemiyor olarak algılanır ve ASCII moduna (`#` ve `-`) geçilir. Gerekirse `LANG=en_US.UTF-8` ayarlayabilir veya Windows Terminal kullanabilirsiniz.
-3. **Session ID Güvenliği:**
-   - Oturum kimlikleri path traversal (`..`, `/`, `\`) ve zararlı karakter denetiminden geçer; geçersiz kimliklerle yapılan çağrılar güvenli biçimde yok sayılır.
-
----
-
-## Ek Dokümantasyon
-
-* **Model & Sağlayıcı Uyumluluğu:** [`docs/providers.md`](docs/providers.md) (Claude, GPT, DeepSeek, Qwen ve katı şablonlu yerel LLM modelleri)
-* **Uyumluluk Politikası:** [`docs/compatibility.md`](docs/compatibility.md) (Desteklenen çalışma zamanları, paket önbellekleme ve platform matrisi)
-* **Güvenlik Politikası:** [`SECURITY.md`](SECURITY.md) (Güvenlik mimarisi, tehdit modeli ve güvenlik açığı bildirme süreci)
+1. **Session Metadata Mirroring (OpenCode 2.0.16):**
+   - In OpenCode 2.0.16, `session.update({ metadata })` calls may be silently ignored by the host. The plugin verifies writes and safely disables this channel if unsupported. Transcripts and RPC are unaffected. You can disable this check via `"mirrorToSessionMetadata": false`.
+2. **Character Encoding on Legacy Consoles:**
+   - On legacy Windows CMD consoles lacking Unicode support, the plugin automatically switches to ASCII mode (`#` and `-`). For optimal rendering, Windows Terminal or `LANG=en_US.UTF-8` is recommended.
+3. **Session ID Safety:**
+   - All session IDs undergo strict sanitization against path traversal (`..`, `/`, `\`) and control characters.
+4. **Queueing When Running Active Shell Commands:**
+   - In OpenCode v2, when an active shell or tool process is running, submitting a new prompt places it into the session queue (`1 queued`). The goal prompt begins executing immediately once the prior command concludes or is interrupted.
 
 ---
 
-## Lisans
+## Additional Documentation
+
+* **Provider & Model Compatibility:** [`docs/providers.md`](docs/providers.md) (Claude, GPT, DeepSeek, Qwen, and strict-template local backends)
+* **Compatibility Policy:** [`docs/compatibility.md`](docs/compatibility.md) (Supported runtimes, package caching, and OS matrix)
+* **Security Policy:** [`SECURITY.md`](SECURITY.md) (Security architecture, threat model, and vulnerability reporting)
+
+---
+
+## License
 
 MIT
-
