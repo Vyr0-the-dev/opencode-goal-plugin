@@ -30,6 +30,7 @@
     "goal.config.json",
     "install.sh",
     "install.ps1",
+    "install.cmd",
     "LICENSE",
     "CHANGELOG.md",
     "README.md"
@@ -37,10 +38,13 @@
   "scripts": {
     "build": "bun build ./src/index.ts --outdir ./dist --target node --format esm",
     "typecheck": "tsc --noEmit",
+    "lint": "tsc --noEmit",
     "test": "bun test",
+    "smoke": "bun test test/smoke.test.ts",
     "setup": "bun run install:posix || bun run install:win",
     "install:posix": "sh ./install.sh",
     "install:win": "powershell -NoProfile -ExecutionPolicy Bypass -File ./install.ps1",
+    "install:cmd": "install.cmd",
     "prepublishOnly": "bun run typecheck && bun test && bun run build"
   },
   "dependencies": {

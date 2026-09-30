@@ -5,112 +5,80 @@ Persistent, evidence-checked goals for OpenCode — the `/goal` feature.
 A prompt asks for one result and waits. A **goal** gives the agent one durable
 objective and lets it keep working until that objective is verifiably true, or
 until it is honestly blocked. It is the same idea as `/goal` in OpenAI Codex
-(0.128.0+), Claude Code, and Hermes, built on OpenCode's own plugin API.
+(0.128.0+), Claude Code, and Hermes, built on OpenCode v2's native plugin API.
 
 You drive it with `/goal`. OpenCode itself drives it with the `goal_create`,
-`goal_status`, and `goal_update` tools. Neither of you can touch the other
-session's goal, and a goal never widens the authority your permissions already
-granted.
+`goal_status`, and `goal_update` tools. Neither can touch another session's
+goal, and a goal never widens the authority your permissions already granted.
 
 ---
 
-## Install
+## Kurulum (Installation)
 
+### macOS, Linux, WSL ve Git Bash (POSIX)
 ```sh
-sh install.sh          # macOS, Linux, WSL, Git Bash
+sh install.sh
 ```
 
+### Windows PowerShell
 ```powershell
-.\install.ps1          # Windows PowerShell
+.\install.ps1
 ```
 
-Either script copies this package into `~/.config/opencode/plugins/opencode-goal-plugin`
-(or `$XDG_CONFIG_HOME/opencode/plugins/...`), vendors the terminal half's
-dependencies into the config's `node_modules`, and removes any older single-file
-loader. Re-running refreshes the copy; deleting the directory uninstalls.
-`opencode reload` picks it up, and restarting the TUI loads the terminal half.
+### Windows Command Prompt (`cmd.exe`)
+```cmd
+install.cmd
+```
 
-### Why it installs a directory and not one file
+Her installer scripti paketi global OpenCode eklentiler dizinine (`~/.config/opencode/plugins/opencode-goal-plugin` veya `$XDG_CONFIG_HOME/opencode/plugins/...`) kurar, TUI bağımlılıklarını (`solid-js`, `@opentui/*`) OpenCode yapılandırmasının `node_modules` dizinine kopyalar ve eski tek dosyalık loader kalıntılarını temizler.
 
-This cost a day to find, so it is written down.
+Yeniden çalıştırmak kopyayı tazeler; dizini silmek eklentiyi kaldırır. `opencode reload` ile sunucu yarısı, TUI'yi yeniden başlatınca terminal yarısı yüklenir.
 
-OpenCode resolves a plugin package's `exports` targets **relative to the package
-root** and does not look inside subdirectories for them. Two consequences:
+### Neden Bir Dizin Olarak Kurulur?
 
-* A single loader file in `~/.config/opencode/plugins/` loads the server half
-  only. There is no package next to it, so the host has no exports map to resolve
-  `./tui` from. The plugin registers as `{"server": true}` and the terminal half
-  never loads — silently, with no warning.
-* A package whose entrypoints live under `./src` or `./dist` is **skipped
-  entirely**, also with no warning.
+OpenCode bir eklenti paketinin `exports` hedeflerini **paket köküne göre** çözümler. Bu mimari nedeniyle:
+* Tek dosyalık bir loader (`goal.ts`) sadece sunucu yarısını yükleyebilir; yanındaki paket haritası olmadığı için host `./tui` hedefini çözümleyemez ve terminal arayüzü sessizce devre dışı kalır.
+* Entrypoint'leri doğrudan `./src` veya `./dist` altında olan paketler host tarafından atlanır.
 
-So every `exports` target here is a file at the package root — `index.js`,
-`tui.tsx`, `rpc.ts` — each a one-line re-export of the real code. That is why
-those three shim files exist, and why the copy is a directory.
+Bu nedenle eklenti kök dizininde `index.js`, `tui.tsx` ve `rpc.ts` re-export shim dosyaları yer alır.
 
-You can see which halves are live without guessing:
-
+Eklentinin devrede olduğunu doğrulamak için:
 ```sh
 opencode api get /api/plugin
 ```
-
-`opencode.goal` should report `{"server": true, "tui": true, "rpc": true}`. A
-missing `tui` means the terminal half is not installed.
-
-The plugin code has no platform-specific paths, no OS-gated dependencies, and no
-runtime dependencies for its server half, so one build serves every platform.
-## Where it works
-
-The same install works everywhere OpenCode does, because everything that carries
-the goal lives in the server, not in a client.
-
-| Surface | `/goal` command | `goal_*` tools | Goal state | Extra UI |
-| --- | --- | --- | --- | --- |
-| TUI | yes | yes | RPC + transcript | badge, progress row, `ctrl+g`, dashboard |
-| Web app | yes | yes | RPC + transcript | — |
-| Desktop app | yes | yes | RPC + transcript | — |
-| IDE extensions | yes | yes | RPC + transcript | — |
-| ACP clients (Zed, …) | yes | yes | RPC + transcript | — |
-| `opencode run` | yes | yes | RPC + transcript | — |
-| `opencode mini` | yes | yes | RPC + transcript | — |
-| Phone / third-party clients | yes | yes | RPC + transcript | — |
-
-*Transcript* means lifecycle and status answers are written as durable synthetic
-messages, so any client that shows a conversation shows the goal. *RPC* means any
-client built on the OpenCode API can call `goal.get`, `goal.list`, and `goal.act`
-and subscribe to a `changed` event. Read the [RPC section](#rpc) for the client
-code.
-
-The TUI half is additive: it reads the same RPC surface, so it can never disagree
-with what the engine decided.
-
-### Known host limitation (OpenCode 2.0.16)
-
-The plugin also mirrors a compact summary onto each session's own `metadata`, so a
-client that only renders a session list could show the goal. On OpenCode 2.0.16
-the HTTP `PATCH /api/session/{id}` applies that patch but the **plugin API's**
-`session.update` accepts and silently discards it — `update({ title })` persists,
-`update({ metadata })` does not.
-
-The mirror verifies every write by reading it back. When the host drops it, the
-plugin logs one honest warning and stops trying, rather than pretending a goal is
-visible where it is not:
-
-```
-[opencode-goal] goal: this OpenCode version accepts a session metadata patch but
-does not apply it (observed on 2.0.16), so the goal cannot be shown in clients
-that only read session metadata. The transcript and the goal RPC are unaffected.
-```
-
-Nothing else depends on that channel. Set `"mirrorToSessionMetadata": false` to
-skip the attempt and silence the warning. If a future OpenCode wires the write
-through, the channel starts working with no change here.
-
+`opencode.goal` girdisinin `{"server": true, "tui": true, "rpc": true}` döndüğünü doğrulayabilirsiniz.
 
 ---
 
-## Use it
+## Desteklenen Ortamlar ve Platformlar
 
+Eklentinin durum ve kontrol mantığı sunucu tarafında çalıştığı için OpenCode'un desteklediği tüm istemcilerde tutarlı çalışır:
+
+| Ortam / Arayüz | `/goal` Komutu | `goal_*` Araçları | Durum Takibi | Ek Terminal UI |
+| --- | --- | --- | --- | --- |
+| **OpenCode TUI** | Evet | Evet | RPC + Transkript | Durum rozeti, ilerleme çubuğu, dashboard panel (`<leader>p`), klavye katmanı |
+| **Web Arayüzü** | Evet | Evet | RPC + Transkript | — |
+| **Masaüstü Uygulaması** | Evet | Evet | RPC + Transkript | — |
+| **IDE Eklentileri (VS Code, Cursor)** | Evet | Evet | RPC + Transkript | — |
+| **ACP İstemcileri (Zed, vb.)** | Evet | Evet | RPC + Transkript | — |
+| **`opencode run` (Headless/CI)** | Evet | Evet | RPC + Transkript | Non-interactive ve TTY fallback |
+| **`opencode mini`** | Evet | Evet | RPC + Transkript | — |
+| **Üçüncü Parti API İstemcileri** | Evet | Evet | RPC + Transkript | — |
+
+### Platformlar ve Shell Desteği
+* **İşletim Sistemleri:** macOS (Intel/Apple Silicon), Linux (x64/arm64), Windows 10/11 (x64/arm64)
+* **Shell'ler:** Bash, Zsh, Fish, PowerShell 5.1/7+, Windows Command Prompt (`cmd.exe`)
+* **Terminal Uyumluluğu:**
+  - Modern terminaller (Windows Terminal, iTerm2, WezTerm, Alacritty, VS Code Terminal): Tam Unicode blok karakterleri (`█` / `─`).
+  - Sınırlı / Eski terminaller (`TERM=dumb`, legacy console): Otomatik ASCII fallback (`#` / `-`).
+  - Dar terminaller (< 70 sütun): Kompakt composer satırı ve dinamik daraltılmış ilerleme çubuğu.
+  - CI / Pipe / Non-interactive: `NO_COLOR` standartlarına tam uyum ve kontrollü loglama (ekran bozulmasını engelleme).
+
+---
+
+## Kullanım Rehberi
+
+### Temel Komut
 ```
 /goal Reduce p95 checkout latency below 120 ms, verified by the checkout
       benchmark, while keeping the correctness suite green. Use only the
@@ -119,236 +87,178 @@ through, the channel starts working with no change here.
       cannot run, stop and report the blocker.
 ```
 
-That text is both the task and the finish line. From then on, whenever the
-session goes idle with the goal still active and inside budget, the agent is
-woken again to audit its evidence and take the next useful action.
+Bu metin hem görevi hem de tamamlanma koşulunu (finish line) belirler. Oturum boşta kaldığında hedef aktif ve bütçe dahilindeyse ajan otomatik olarak uyandırılır, kanıtları denetler ve bir sonraki adımı yürütür.
 
-### Commands
+### Komut Tablosu
 
-| Command | Effect |
+| Komut | Açıklama |
 | --- | --- |
-| `/goal <objective>` | Start (or replace) the goal and begin working |
-| `/goal` or `/goal status` | Show the goal, its contract, its budget, its ledger |
-| `/goal pause` (`stop`) | Stop continuing; the objective is kept |
-| `/goal resume` (`continue`) | Continue from the current state |
-| `/goal clear` (`reset`) | Remove the goal from the session |
-| `/goal history` | Show the progress ledger and lifecycle |
-| `/goal edit <text>` | Replace the objective, keep the rest of the contract |
-| `/goal budget <n>` | Change the automatic turn budget |
-| `/goal draft <text>` | Have the model write a strong contract first |
-| `/goal help` | Full command surface |
+| `/goal <hedef>` | Hedefi başlatır (veya değiştirir) ve çalışmaya başlar |
+| `/goal` veya `/goal status` | Mevcut hedefi, sözleşmeyi, kalan bütçeyi ve defteri gösterir |
+| `/goal pause` (veya `stop`) | Döngüyü duraklatır; hedef metni ve ilerleme korunur |
+| `/goal resume` (veya `continue`) | Duraklatılmış hedefi kaldığı yerden devam ettirir |
+| `/goal clear` (veya `reset`) | Hedefi oturumdan tamamen kaldırır |
+| `/goal history` | İlerleme defterini (ledger) ve durum geçişlerini listeler |
+| `/goal edit <yeni metin>` | Hedef sözleşmesini koruyarak sadece hedef cümlesini günceller |
+| `/goal budget <sayı>` | Otomatik tur bütçesini günceller |
+| `/goal draft <konu>` | Modellerin güçlü bir hedef sözleşmesi taslağı yazmasını sağlar |
+| `/goal help` | Yardım ve kullanım detaylarını listeler |
 
-A lifecycle word is only a command when it is the **whole** input, so an
-objective may start with any word:
-
+Bir yaşam döngüsü kelimesi (`pause`, `stop`, `clear`, vb.) yalnızca girdinin **tamamı** olduğunda komut sayılır. Bu sayede hedef metniniz herhangi bir kelimeyle başlayabilir:
 ```
-/goal stop the flaky checkout test     <- sets a goal
-/goal stop                             <- pauses the current one
+/goal stop the flaky checkout test     <- Yeni hedef başlatır
+/goal stop                             <- Mevcut hedefi duraklatır
 ```
 
-Verbs that take an argument (`set`, `edit`, `draft`, `budget`) are read in the
-leading position.
+### Sözleşme Bayrakları (Flags)
 
-### Contract flags
-
-Everything after the objective is optional, and quoting follows shell rules.
-
-| Flag | Meaning |
+| Bayrak | Anlamı |
 | --- | --- |
-| `--turns N` | Automatic turn budget (default 25) |
-| `--minutes N` | Wall-clock ceiling in minutes (default 180) |
-| `--verify "…"` | Verification surface: the evidence that proves the outcome |
-| `--constraints "…"` | What must not regress |
-| `--boundaries "…"` | Files, tools, and data in scope |
-| `--iterate "…"` | How to choose the next action after each attempt |
-| `--blocked "…"` | When to stop and report instead of continuing |
-| `--no-start` | Install the goal without starting a turn |
-| `--no-continue` | Install an active goal that will not run on its own |
-
-### In the terminal
-
-`/goal` is handled by the server command, so it behaves the same everywhere. A
-lifecycle answer is written to the transcript and the turn that carries it is
-scheduled, which is why the agent answers in the chat rather than in a dialog.
-
-* A `GOAL 3/25` badge appears in the prompt footer.
-* A progress row above the composer shows the title, a bar, and the budget.
-* The command palette has *Goal: open dashboard / status / pause / resume / clear*
-  and *Goal: pause or resume*, and those answer in a dialog from the same RPC,
-  without a model turn.
-* The dashboard panel (`p` pause, `r` resume, `R` refresh, `c` clear, `f` fullscreen)
-  shows the contract, the blocker, and the ledger.
-
-**Keybind: `ctrl+x` then `p`.** That is `<leader>p`. The choice is deliberate: an
-earlier version bound `ctrl+g`, which turned out to be OpenCode's own
-`session.first` — the host won, the plugin lost, and pressing it scrolled the
-transcript instead of opening a goal dialog. Almost every `ctrl+` and `<leader>+`
-key in the host's table is already assigned, so a binding has to be picked against
-that table rather than guessed. The palette entries work regardless. To change the
-key, assign the command ID in `cli.json`:
-
-```json title="~/.config/opencode/cli.json"
-{
-  "keybinds": {
-    "opencode.goal.toggle": "<leader>o"
-  }
-}
-```
-
-`<leader>` is `ctrl+x` by default.
-
-**Why the answer costs a turn.** A plugin's only way to write into a transcript is
-`session.synthetic`, and on OpenCode 2.0.16 that message is delivered *only* when
-it also schedules a turn. An answer written with `resume: false` is durable and
-free, but it sits in the session inbox until some later turn drains it — so
-`/goal status` would look like it did nothing at all. An answer that is free but
-invisible is worse than one that costs a call, so the default is to schedule it.
-Set `answerLifecycleImmediately: false` to go back to the silent-but-free
-behaviour, or use `ctrl+g` and the palette entries for the free path.
-
-**A note on `/goal` in the composer.** An earlier version registered a TUI slash
-command to intercept `/goal` and answer it in a dialog without a turn. It was
-measured and it does not intercept: the composer still submits the line to the
-server, so the command was listed twice and implied a behaviour that never
-happened. It has been removed rather than left in place. The dialog path still
-exists, reachable from the palette and `ctrl+g`.
+| `--turns N` | Otomatik tur bütçesi (varsayılan: 25) |
+| `--minutes N` | Duvar saati tavan süresi (dakika, varsayılan: 180) |
+| `--verify "…"` | Doğrulama yüzeyi: sonucu kanıtlayan test, benchmark veya komut |
+| `--constraints "…"` | Gerilememesi (regress etmemesi) gereken kriterler |
+| `--boundaries "…"` | Kapsam dahilindeki dosya, servis veya veri sınırları |
+| `--iterate "…"` | Her denemeden sonraki adım seçim kuralı |
+| `--blocked "…"` | Hangi koşulda devam etmeyip kullanıcıya rapor verileceği |
+| `--no-start` | Hedefi oturuma kurar ancak hemen bir model turu başlatmaz |
+| `--no-continue` | Hedefi aktif kurar ancak otomatik devam etmesini engeller |
 
 ---
 
-## How it behaves
+## Terminal ve TUI Davranışı
 
-**Thread-scoped, not global.** A goal belongs to the session that set it. It is
-durable plugin storage, not project instructions and not global memory.
-
-**Survives compaction.** The completion contract is injected into the system
-prompt of every model call (`context`, `compaction`, and `generate`), so the
-objective cannot be forgotten when history is summarized away.
-
-**Continuation is event-driven and conservative.** It happens on `session.idle`
-only, and only when all of these hold: the goal is `active`; nothing is queued in
-the session inbox; the session's agent is not a skipped read-only agent; no
-continuation is already in flight; the cooldown since the last one has passed;
-and the budget has room.
-
-**Completion is evidence-based.** The model can only mark a goal `complete`
-through `goal_update`, and that call is refused without a summary. Marking
-`blocked` is refused without a blocker. It cannot pause, resume, edit, or clear a
-goal — those are yours, through `/goal`.
-
-**The loop cannot spin.** A continuation turn that produced no tool call is not
-evidence of progress, so the next automatic turn is suppressed and you are told
-why. After `maxNoToolStreak` fruitless turns the goal is marked `blocked`.
-
-**Interrupting pauses.** Pressing escape during a run pauses the objective, so a
-runaway loop cannot be resumed by accident.
-
-**The budget is honest.** Reaching it stops the loop for review and says plainly
-that a budget limit is not the same as completing the objective. Resuming
-renews the ceiling but keeps the turns already spent on the record.
-
-**Zero cost for lifecycle commands.** `status`, `pause`, `history`, and `clear`
-answer with a durable synthetic message that carries `resume: false`, so they are
-recorded in the transcript without scheduling a model turn.
+1. **Footer Rozeti:** Prompt'un sağ alt footer alanında canlı durum: `GOAL 3/25`.
+2. **Composer Üstü Satırı:**
+   - Geniş ekran: `GOAL [██████──────] 3/25 turns · 12m/3h · Hedef Başlığı · <leader>p pause`
+   - Dar ekran (< 70 sütun): `GOAL [███---] 3/25t · Hedef Başlığı`
+   - ASCII terminaller: `GOAL [######------]`
+3. **Dashboard Paneli (`<leader>p` veya komut paletinden *Goal: open dashboard*):**
+   - `p`: Duraklat (pause)
+   - `r`: Devam et (resume)
+   - `R`: Yenile (refresh)
+   - `c`: Hedefi temizle (clear)
+   - `f`: Tam ekran aç/kapat (fullscreen)
+4. **Klavye Kısayolu:** Varsayılan `<leader>p` (`ctrl+x` ardından `p`). `cli.json` dosyasında özelleştirilebilir:
+   ```json
+   {
+     "keybinds": {
+       "opencode.goal.toggle": "<leader>o"
+     }
+   }
+   ```
 
 ---
 
-## Tools
+## Model Araçları (Model-facing Tools)
 
-| Tool | Purpose |
-| --- | --- |
-| `goal_create` | Start a goal for the current session. The model may do this when the user describes an objective instead of setting one. |
-| `goal_status` | Read the goal, its contract, its budget, and its ledger. |
-| `goal_update` | Record an iteration (`working`), declare `complete` with evidence, or declare `blocked` with a blocker. |
+Model long-running hedefleri şu araçlarla yönlendirir:
 
-## RPC
+* `goal_create`: Kullanıcı hedefi sohbet içinde tarif ettiğinde model tarafından hedefi oluşturmak için kullanılır.
+* `goal_status`: Aktif hedefi, kalan bütçeyi ve son adımları okur (salt okunur).
+* `goal_update`: İlerlemeyi kaydeder (`working`), kanıt sunarak tamamlar (`complete`), veya engel durumunu bildirir (`blocked`). Kanıt olmadan tamamlama veya engel sebebi belirtilmeden bloklama reddedilir.
 
-The server plugin publishes an RPC surface, so any client or another plugin can
-read and steer goals without going through the TUI:
+---
+
+## RPC Arayüzü
+
+Eklenti, tüm istemcilerin hedefi yönetebilmesi için standart bir RPC arayüzü sunar:
 
 ```ts
 import { OpenCode } from "@opencode/client"
 import { GoalRpc } from "opencode-goal-plugin/rpc"
 
-const api = OpenCode.make({ baseUrl: "http://localhost:4096" }).rpc(GoalRpc)
+const client = OpenCode.make({ baseUrl: "http://localhost:4096" })
+const api = client.rpc(GoalRpc)
 
-await api.get({ sessionID })
-await api.list({})
-await api.act({ sessionID, action: "pause" })
-api.events.on("changed", (event) => console.log(event.data.sessionID, event.data.status))
+// Hedef durumunu oku
+const status = await api.get({ sessionID: "ses_123" })
+
+// Hedefi duraklat veya devam ettir
+await api.act({ sessionID: "ses_123", action: "pause", origin: "external" })
+
+// Değişiklikleri dinle
+api.events.on("changed", (event) => {
+  console.log(`Oturum ${event.data.sessionID} durumu: ${event.data.status}`)
+})
 ```
 
-`act` accepts `status`, `pause`, `resume`, `clear`, `budget`, and `continue-once`;
-anything else is rejected with `unknown_action`.
+---
+
+## Konfigürasyon (`goal.config.json`)
+
+Seçenekler `goal.config.json` dosyasından veya yerel override için `goal.config.local.json` dosyasından okunur. Ayrıca `opencode.json(c)` içindeki plugin `options` alanı en yüksek önceliğe sahiptir.
+
+```json
+{
+  "enabled": true,
+  "commandName": "goal",
+  "defaultMaxTurns": 25,
+  "defaultMaxMinutes": 180,
+  "continuationDelayMs": 750,
+  "pauseOnInterrupt": true,
+  "skipAgents": ["plan"],
+  "injectGoal": true,
+  "maxNotes": 40,
+  "maxNoToolStreak": 2,
+  "postLifecycleNotices": true,
+  "mirrorToSessionMetadata": true,
+  "answerLifecycleImmediately": true
+}
+```
 
 ---
 
-## Configuration
+## Geliştirme, Test ve Kalite Kontrolleri
 
-Edit `goal.config.json` next to the plugin, or set `options` on the plugin entry
-in `opencode.json(c)` (that wins over the file). For a machine-specific change,
-put it in `goal.config.local.json` beside the plugin instead: it overrides
-`goal.config.json`, is gitignored, and never ends up in a commit.
-
-| Option | Default | Meaning |
-| --- | --- | --- |
-| `enabled` | `true` | Master switch; when false nothing is registered |
-| `defaultMaxTurns` | `25` | Automatic turns a goal may use |
-| `defaultMaxMinutes` | `180` | Wall-clock ceiling |
-| `continuationDelayMs` | `750` | Grace period after a continuation, so you can interrupt |
-| `pauseOnInterrupt` | `true` | Interrupting a run pauses the goal |
-| `skipAgents` | `["plan"]` | Agents that may not drive a goal |
-| `injectGoal` | `true` | Inject the contract into every model call |
-| `maxNotes` | `40` | Ledger entries kept |
-| `maxNoToolStreak` | `2` | Fruitless turns before the goal is blocked |
-| `postLifecycleNotices` | `true` | Note pauses, budget stops, and blocks in the transcript |
-| `mirrorToSessionMetadata` | `true` | Mirror a summary onto session metadata; verified, and self-disabling if the host ignores it |
-| `answerLifecycleImmediately` | `true` | Schedule the turn that carries a lifecycle answer, so it is actually delivered. Set `false` to write it for free but leave it undelivered until the next turn |
-| `commandName` | `"goal"` | Slash command name |
-
-Every option is validated; a bad value falls back to its default rather than
-failing the session.
-
----
-
-## Design notes
-
-**No runtime SDK import.** Every `@opencode/plugin` import in this package is
-`import type`, which TypeScript erases. The plugin object is a plain
-`{ id, setup }` and the RPC definition is a plain object typed against
-`Rpc.PortableDefinition`. That is what makes the package loadable from any
-directory with no installed dependencies, and it is the pattern the shipped
-OpenCode plugins use.
-
-**Nothing is written that was not read first.** The session metadata mirror merges
-into the existing map and never removes a key it does not own, and it verifies its
-own write so a host that drops it is reported rather than assumed to have worked.
-
-**The dispatcher is a pure function.** `decideContinuation` takes observable
-state and returns `continue`, `budget_exhausted`, or `stop` with a reason. No
-I/O, no clock, no plugin context. Every rule — pending input, plan agents,
-cooldown, concurrency, budget — is unit tested directly.
-
-**Storage failures cannot reach a session.** Reads and writes are wrapped, writes
-are serialized per session so a continuation tick cannot clobber a tool call, and
-a goal that cannot be persisted still works in memory.
-
-**Compatibility.** Only documented, stable plugin surfaces are used: `command`,
-`tool`, `storage`, `session` hooks, the event stream, and plugin RPC. Unknown
-event types are ignored, missing or malformed state is repaired rather than
-thrown, and the lifecycle stops when the plugin unloads. Nothing outside the
-plugin's own storage and its own metadata key is ever mutated.
-
-## Development
+Projede Bun ve TypeScript kullanılmaktadır.
 
 ```sh
+# Bağımlılıkları yükle
 bun install
-bun test          # 152 tests
+
+# Tip kontrolü (TypeScript strict mode)
 bun run typecheck
+
+# Lint kontrolü
+bun run lint
+
+# Birim, entegrasyon ve terminal testleri (258+ test)
+bun test
+
+# Dağıtım ve paketleme smoke testleri
+bun run smoke
+
+# Sunucu bundle'ını derle
+bun run build
+
+# Tüm yayın öncesi adımları doğrula
+bun run prepublishOnly
 ```
 
-Tests run against a fake port, so the whole policy — dispatch, suppression,
-budget, interruption, persistence, isolation — is exercised without a server.
+### CI/CD Doğrulaması
+GitHub Actions iş akışı (`.github/workflows/ci.yml`), Ubuntu, macOS ve Windows runner'ları üzerinde:
+- Bağımlılık kurulumu
+- Typecheck & Lint
+- Test paketinin tamamı
+- Build derlemesi
+- Smoke testleri
+- `npm pack --dry-run` paketleme denetimini
+otomatik olarak yürütür.
 
-## License
+---
+
+## Bilinen Sınırlamalar ve Sorun Giderme
+
+1. **Session Metadata Yansıtma (OpenCode 2.0.16):**
+   - OpenCode 2.0.16 sürümünde `session.update({ metadata })` çağrısı host tarafından sessizce göz ardı edilebilir. Eklenti her yazmayı doğrulayarak test eder; desteklenmiyorsa bir uyarı verip bu kanalı kapatır. Transkript ve RPC kanalları bu durumdan etkilenmez. Uyarıyı kapatmak için `"mirrorToSessionMetadata": false` yapabilirsiniz.
+2. **Karakter Kodlama / Garip Karakter Sorunları:**
+   - Eski Windows cmd konsollarında blok karakterler düzgün görünmüyorsa terminal Unicode desteklemiyor olarak algılanır ve ASCII moduna (`#` ve `-`) geçilir. Gerekirse `LANG=en_US.UTF-8` ayarlayabilir veya Windows Terminal kullanabilirsiniz.
+3. **Session ID Güvenliği:**
+   - Oturum kimlikleri path traversal (`..`, `/`, `\`) ve zararlı karakter denetiminden geçer; geçersiz kimliklerle yapılan çağrılar güvenli biçimde yok sayılır.
+
+---
+
+## Lisans
 
 MIT

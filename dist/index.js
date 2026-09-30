@@ -422,6 +422,64 @@ function draftPrompt(subject) {
 `);
 }
 
+// src/security.ts
+var SAFE_SESSION_ID_PATTERN = /^[a-zA-Z0-9_-][a-zA-Z0-9._-]{0,127}$/;
+function isValidSessionID(sessionID) {
+  if (typeof sessionID !== "string") {
+    return false;
+  }
+  const trimmed = sessionID.trim();
+  if (!trimmed) {
+    return false;
+  }
+  if (trimmed.includes("/") || trimmed.includes("\\") || trimmed.includes("..") || trimmed.includes("\x00")) {
+    return false;
+  }
+  return SAFE_SESSION_ID_PATTERN.test(trimmed);
+}
+function assertSafeSessionID(sessionID) {
+  if (!isValidSessionID(sessionID)) {
+    throw new Error(`Invalid session identifier: unsafe or malformed characters detected`);
+  }
+  return sessionID.trim();
+}
+
+// src/logger.ts
+class DefaultSink {
+  write(level, message, error) {
+    const errorDetails = error instanceof Error ? `: ${error.message}` : typeof error === "string" && error.length > 0 ? `: ${error}` : "";
+    const formatted = `[opencode-goal] ${message}${errorDetails}`;
+    if (level === "error" || level === "warn") {
+      if (process.env.OPENCODE_QUIET !== "1" && process.env.OPENCODE_QUIET !== "true") {
+        console.error(formatted);
+      }
+    }
+  }
+}
+var activeSink = new DefaultSink;
+var logger = {
+  setSink(sink) {
+    activeSink = sink;
+  },
+  resetSink() {
+    activeSink = new DefaultSink;
+  },
+  warn(message, error) {
+    activeSink.write("warn", message, error);
+  },
+  error(message, error) {
+    activeSink.write("error", message, error);
+  },
+  info(message) {
+    activeSink.write("info", message);
+  },
+  debug(message) {
+    if (process.env.DEBUG?.includes("opencode-goal")) {
+      activeSink.write("debug", message);
+    }
+  }
+};
+
 // src/store.ts
 function json(value) {
   return value;
@@ -437,9 +495,13 @@ class GoalStore {
     this.#storage = storage;
   }
   key(sessionID) {
-    return `${PREFIX}${sessionID}`;
+    const safeID = assertSafeSessionID(sessionID);
+    return `${PREFIX}${safeID}`;
   }
   async read(sessionID) {
+    if (!isValidSessionID(sessionID)) {
+      return;
+    }
     try {
       const raw = await this.#storage.get(this.key(sessionID));
       const goal = reviveGoal(raw);
@@ -453,15 +515,21 @@ class GoalStore {
     }
   }
   async write(goal) {
-    this.#cache.set(goal.sessionID, goal);
-    await this.#serialized(goal.sessionID, async () => {
+    const sessionID = assertSafeSessionID(goal.sessionID);
+    this.#cache.set(sessionID, goal);
+    await this.#serialized(sessionID, async () => {
       try {
-        await this.#storage.set(this.key(goal.sessionID), json(goal));
-      } catch {}
+        await this.#storage.set(this.key(sessionID), json(goal));
+      } catch (error) {
+        logger.debug(`storage write fallback to cache: ${error instanceof Error ? error.message : String(error)}`);
+      }
     });
     return goal;
   }
   async update(sessionID, updater) {
+    if (!isValidSessionID(sessionID)) {
+      return;
+    }
     let result;
     await this.#serialized(sessionID, async () => {
       const current = await this.read(sessionID);
@@ -472,11 +540,16 @@ class GoalStore {
       this.#cache.set(sessionID, next);
       try {
         await this.#storage.set(this.key(sessionID), json(next));
-      } catch {}
+      } catch (error) {
+        logger.debug(`storage update fallback to cache: ${error instanceof Error ? error.message : String(error)}`);
+      }
     });
     return result;
   }
   async remove(sessionID) {
+    if (!isValidSessionID(sessionID)) {
+      return;
+    }
     this.#cache.delete(sessionID);
     await this.#serialized(sessionID, async () => {
       try {
@@ -492,7 +565,7 @@ class GoalStore {
         const result = await this.#storage.scan(cursor ? { prefix: PREFIX, after: cursor, limit: SCAN_LIMIT } : { prefix: PREFIX, limit: SCAN_LIMIT });
         for (const entry of result.entries) {
           const sessionID = entry.key.slice(PREFIX.length);
-          if (!sessionID)
+          if (!isValidSessionID(sessionID))
             continue;
           const cached = this.#cache.get(sessionID);
           if (cached) {
@@ -515,10 +588,13 @@ class GoalStore {
     return goals;
   }
   invalidate(sessionID) {
-    if (sessionID)
-      this.#cache.delete(sessionID);
-    else
+    if (sessionID) {
+      if (isValidSessionID(sessionID)) {
+        this.#cache.delete(sessionID);
+      }
+    } else {
       this.#cache.clear();
+    }
   }
   #serialized(sessionID, task) {
     const previous = this.#locks.get(sessionID) ?? Promise.resolve();
@@ -1431,25 +1507,27 @@ function tokenize(input) {
   const tokens = [];
   let current = "";
   let quote;
-  let escaped = false;
   let started = false;
-  for (const char of input) {
-    if (escaped) {
-      current += char;
-      escaped = false;
-      started = true;
-      continue;
-    }
+  for (let i = 0;i < input.length; i++) {
+    const char = input[i];
+    const next = input[i + 1];
     if (char === "\\" && quote === '"') {
-      escaped = true;
+      if (next === '"' || next === "\\") {
+        current += next;
+        i++;
+        started = true;
+        continue;
+      }
+      current += char;
       started = true;
       continue;
     }
     if (quote) {
-      if (char === quote)
+      if (char === quote) {
         quote = undefined;
-      else
+      } else {
         current += char;
+      }
       started = true;
       continue;
     }
@@ -1686,6 +1764,9 @@ function registerGoalCommand(deps) {
 async function runGoalCommand(deps, invocation) {
   const { host, engine, options } = deps;
   const sessionID = invocation.sessionID;
+  if (!isValidSessionID(sessionID)) {
+    return;
+  }
   const raw = typeof invocation.prompt?.text === "string" ? invocation.prompt.text : "";
   const parsed = parseGoalCommand(raw, options.commandName);
   try {
@@ -1798,7 +1879,7 @@ async function report(deps, sessionID, text, wake = deps.options.answerLifecycle
       metadata: { [GOAL_METADATA]: "notice" }
     });
   } catch (error) {
-    console.error(`[opencode-goal] ${describe3(error)}`);
+    logger.error("goal synthetic report failed", error);
   }
 }
 async function submit(host, sessionID, text, origin) {
@@ -1810,7 +1891,7 @@ async function submit(host, sessionID, text, origin) {
       metadata: { [GOAL_METADATA]: origin }
     });
   } catch (error) {
-    console.error(`[opencode-goal] could not submit the ${origin} turn — ${describe3(error)}`);
+    logger.error(`could not submit the ${origin} turn`, error);
   }
 }
 function describe3(error) {
@@ -2022,6 +2103,8 @@ var goalPlugin = {
     registerGoalCommand({ host: { storage: ctx.storage, command: ctx.command, session: ctx.session }, engine, options });
     if (options.injectGoal) {
       const inject = async (event) => {
+        if (!isValidSessionID(event.sessionID))
+          return;
         const goal = await engine.get(event.sessionID);
         if (!goal || goal.status === "cleared")
           return;
@@ -2034,14 +2117,22 @@ var goalPlugin = {
           system.push({ type: "text", text: goalSystemBlock(goal) });
         } catch {}
       };
-      await ctx.session.hook("context", (event) => void inject(event).catch(warn));
-      await ctx.session.hook("compaction", (event) => void inject(event).catch(warn));
-      await ctx.session.hook("generate", (event) => void inject(event).catch(warn));
+      await ctx.session.hook("context", async (event) => {
+        await inject(event).catch(warn);
+      });
+      await ctx.session.hook("compaction", async (event) => {
+        await inject(event).catch(warn);
+      });
+      await ctx.session.hook("generate", async (event) => {
+        await inject(event).catch(warn);
+      });
     }
-    await ctx.session.hook("prompt", (event) => {
+    await ctx.session.hook("prompt", async (event) => {
+      if (!isValidSessionID(event.sessionID))
+        return;
       if (readOrigin(event.metadata) === "continuation")
         return;
-      engine.onUserPrompt(event.sessionID).catch(warn);
+      await engine.onUserPrompt(event.sessionID).catch(warn);
     });
     const controller = new AbortController;
     (async () => {
@@ -2056,7 +2147,10 @@ var goalPlugin = {
     })();
     const registration = await ctx.rpc.register(GoalRpc, {
       get: async (input) => {
-        const goal = await engine.get(input.sessionID);
+        const sessionID = input.sessionID;
+        if (!isValidSessionID(sessionID))
+          return { goal: null };
+        const goal = await engine.get(sessionID);
         return { goal: goal ? project(goal, Date.now()) : null };
       },
       list: async () => {
@@ -2066,6 +2160,9 @@ var goalPlugin = {
       },
       act: async (input, call) => {
         const raw = input;
+        if (!isValidSessionID(raw.sessionID)) {
+          return call.error("unknown_action", `Invalid session identifier: ${raw.sessionID}`, { action: raw.action });
+        }
         if (!isGoalAction(raw.action)) {
           return call.error("unknown_action", `Unknown goal action: ${raw.action}`, { action: raw.action });
         }
@@ -2118,7 +2215,7 @@ function mergeOptionSources(sources) {
 }
 function dispatchEvent(engine, mirror, event) {
   const sessionID = readSessionID(event);
-  if (!sessionID)
+  if (!sessionID || !isValidSessionID(sessionID))
     return;
   switch (event.type) {
     case "session.idle":
@@ -2184,10 +2281,14 @@ function createPort(ctx, emitter, mirror) {
   return {
     storage: ctx.storage,
     async sessionInfo(sessionID) {
+      if (!isValidSessionID(sessionID))
+        return;
       const info = await ctx.session.get({ sessionID });
       return { agent: info?.agent };
     },
     async prompt(input) {
+      if (!isValidSessionID(input.sessionID))
+        return;
       await ctx.session.prompt({
         sessionID: input.sessionID,
         text: input.text,
@@ -2196,6 +2297,8 @@ function createPort(ctx, emitter, mirror) {
       });
     },
     async note(input) {
+      if (!isValidSessionID(input.sessionID))
+        return;
       await ctx.session.synthetic({
         sessionID: input.sessionID,
         text: input.text,
@@ -2206,6 +2309,8 @@ function createPort(ctx, emitter, mirror) {
       });
     },
     async changed(goal, sessionID) {
+      if (!isValidSessionID(sessionID))
+        return;
       if (mirror)
         await mirror.publish(sessionID, goal);
       await emitter.emit(sessionID, goal?.status ?? "cleared", goal?.updatedAt ?? Date.now());
@@ -2276,7 +2381,7 @@ function isOwnNotice(item) {
   return metadata[GOAL_METADATA] === "notice";
 }
 function warn(error) {
-  console.error(`[opencode-goal] ${error instanceof Error ? error.message : typeof error === "string" ? error : "unknown error"}`);
+  logger.warn(error instanceof Error ? error.message : typeof error === "string" ? error : "unknown error");
 }
 export {
   normalizeOptions,
