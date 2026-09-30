@@ -16,6 +16,8 @@ import { normalizeOptions, type GoalOptions } from "./options.ts"
 import { HELP_TEXT, draftFromParsed, parseGoalCommand, type ParsedCommand } from "./parse.ts"
 import { activationPrompt, draftPrompt } from "./prompts.ts"
 import type { Goal } from "./goal.ts"
+import { logger } from "./logger.ts"
+import { isValidSessionID } from "./security.ts"
 
 export interface CommandHost {
   readonly storage: StorageDomain
@@ -52,6 +54,10 @@ export function registerGoalCommand(deps: CommandDeps): void {
 export async function runGoalCommand(deps: CommandDeps, invocation: Invocation): Promise<void> {
   const { host, engine, options } = deps
   const sessionID = invocation.sessionID
+  if (!isValidSessionID(sessionID)) {
+    return
+  }
+
   const raw = typeof invocation.prompt?.text === "string" ? invocation.prompt.text : ""
   const parsed = parseGoalCommand(raw, options.commandName)
 
@@ -209,7 +215,7 @@ async function report(
       metadata: { [GOAL_METADATA]: "notice" },
     })
   } catch (error) {
-    console.error(`[opencode-goal] ${describe(error)}`)
+    logger.error("goal synthetic report failed", error)
   }
 }
 
@@ -222,7 +228,7 @@ async function submit(host: CommandHost, sessionID: string, text: string, origin
       metadata: { [GOAL_METADATA]: origin },
     })
   } catch (error) {
-    console.error(`[opencode-goal] could not submit the ${origin} turn — ${describe(error)}`)
+    logger.error(`could not submit the ${origin} turn`, error)
   }
 }
 

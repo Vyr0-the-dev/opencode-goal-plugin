@@ -19,6 +19,7 @@ import { bar } from "./bar.ts"
 import { normalizeOptions } from "./options.ts"
 import { planGoalUiAction } from "./ui-action.ts"
 import { HELP_TEXT } from "./parse.ts"
+import { getTerminalWidth, isNarrowTerminal, isUnicodeSupported } from "./terminal.ts"
 
 export const TUI_PANEL = "goal.dashboard"
 
@@ -410,26 +411,37 @@ export default {
         const goal = goalOf(input.sessionID)
         return (
           <Show when={goal}>
-            {(current) => (
-              <box flexDirection="row" gap={1} paddingX={1}>
-                <text fg={context.theme[STATUS_TONE[current().status] ?? "text.base"]}>
-                  {STATUS_BADGE[current().status] ?? "GOAL"}
-                </text>
-                <text fg={context.theme.text.dim}>{bar(current().progressPercent)}</text>
-                <text fg={context.theme.text.dim}>
-                  {current().usedTurns}/{current().maxTurns} turns · {minutes(current().elapsedMs)}/{minutes(current().maxMs)}
-                </text>
-                <text fg={context.theme.text.dim} truncate>
-                  {current().title}
-                </text>
-                <Show when={current().status === "active"}>
-                  <text fg={context.theme.text.dim}>· {toggleHint()} pause</text>
-                </Show>
-                <Show when={current().status !== "active" && current().status !== "complete"}>
-                  <text fg={context.theme.text.dim}>· {toggleHint()} resume</text>
-                </Show>
-              </box>
-            )}
+            {(current) => {
+              const termWidth = getTerminalWidth(context.renderer?.width ?? context.renderer?.terminalWidth)
+              const narrow = isNarrowTerminal(termWidth)
+              const barWidth = narrow ? 8 : 12
+              const ascii = !isUnicodeSupported()
+
+              return (
+                <box flexDirection="row" gap={1} paddingX={1}>
+                  <text fg={context.theme[STATUS_TONE[current().status] ?? "text.base"]}>
+                    {STATUS_BADGE[current().status] ?? "GOAL"}
+                  </text>
+                  <text fg={context.theme.text.dim}>
+                    {bar(current().progressPercent, { width: barWidth, ascii })}
+                  </text>
+                  <text fg={context.theme.text.dim}>
+                    {narrow
+                      ? `${current().usedTurns}/${current().maxTurns}t`
+                      : `${current().usedTurns}/${current().maxTurns} turns · ${minutes(current().elapsedMs)}/${minutes(current().maxMs)}`}
+                  </text>
+                  <text fg={context.theme.text.dim} truncate>
+                    {current().title}
+                  </text>
+                  <Show when={!narrow && current().status === "active"}>
+                    <text fg={context.theme.text.dim}>· {toggleHint()} pause</text>
+                  </Show>
+                  <Show when={!narrow && current().status !== "active" && current().status !== "complete"}>
+                    <text fg={context.theme.text.dim}>· {toggleHint()} resume</text>
+                  </Show>
+                </box>
+              )
+            }}
           </Show>
         )
       },
@@ -561,6 +573,11 @@ function GoalPanel(props: PanelProps) {
     ],
   }))
 
+  const termWidth = () => getTerminalWidth(props.panel.width)
+  const isNarrow = () => isNarrowTerminal(termWidth())
+  const barWidth = () => (isNarrow() ? 12 : 20)
+  const ascii = () => !isUnicodeSupported()
+
   return (
     <box flexDirection="column" gap={1} padding={1}>
       <Show when={goal()} fallback={<text fg={props.context.theme.text.dim}>No goal in this session. Use /goal &lt;outcome&gt; to start one.</text>}>
@@ -568,7 +585,7 @@ function GoalPanel(props: PanelProps) {
           <>
             <box flexDirection="row" gap={1}>
               <text fg={tone()}>{STATUS_BADGE[current().status] ?? "GOAL"}</text>
-              <text fg={props.context.theme.text.dim}>{bar(current().progressPercent, 20)}</text>
+              <text fg={props.context.theme.text.dim}>{bar(current().progressPercent, { width: barWidth(), ascii: ascii() })}</text>
               <text fg={props.context.theme.text.dim}>
                 {current().usedTurns}/{current().maxTurns} turns · {minutes(current().elapsedMs)}/{minutes(current().maxMs)}
               </text>

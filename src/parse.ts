@@ -113,32 +113,40 @@ export function tokenize(input: string): string[] {
   const tokens: string[] = []
   let current = ""
   let quote: '"' | "'" | undefined
-  let escaped = false
   let started = false
 
-  for (const char of input) {
-    if (escaped) {
-      current += char
-      escaped = false
-      started = true
-      continue
-    }
+  for (let i = 0; i < input.length; i++) {
+    const char = input[i]!
+    const next = input[i + 1]
+
     if (char === "\\" && quote === '"') {
-      escaped = true
+      if (next === '"' || next === "\\") {
+        current += next
+        i++
+        started = true
+        continue
+      }
+      current += char
       started = true
       continue
     }
+
     if (quote) {
-      if (char === quote) quote = undefined
-      else current += char
+      if (char === quote) {
+        quote = undefined
+      } else {
+        current += char
+      }
       started = true
       continue
     }
+
     if (char === '"' || char === "'") {
       quote = char
       started = true
       continue
     }
+
     if (/\s/.test(char)) {
       if (started) {
         tokens.push(current)
@@ -147,9 +155,11 @@ export function tokenize(input: string): string[] {
       }
       continue
     }
+
     current += char
     started = true
   }
+
   if (started) tokens.push(current)
   return tokens
 }

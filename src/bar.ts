@@ -1,27 +1,44 @@
 /**
- * The progress bar for the TUI progress row.
+ * The progress bar for the TUI progress row and CLI displays.
  *
- * It lives in its own module rather than in `tui.tsx` for two reasons. The test
- * suite cannot import `tui.tsx` at all, because `tsconfig.json` sets
- * `"jsx": "preserve"` and the suite runs unbundled - so a bar defined in there
- * could only be verified by looking at a screenshot. And the glyph choice is the
- * part most likely to need changing again.
- *
- * `░` is the conventional empty-track character and it is wrong here. It is a
- * dither pattern, not a shade: terminal fonts render it as a stipple, and at
- * twelve columns that reads as vertical stripes rather than as an empty bar. The
- * row looked broken in a way that no assertion would have caught. `─` is a solid
- * line in every font, so the row reads as "filled, then track".
+ * Supports both high-fidelity Unicode blocks (`█` / `─`) and safe ASCII fallbacks (`#` / `-`)
+ * for terminals with restricted encoding, dumb terminals, or legacy consoles.
  */
 
-const FILL = "█" // full block
-const TRACK = "─" // light horizontal
+const UNICODE_FILL = "█" // full block
+const UNICODE_TRACK = "─" // light horizontal
 
-export function bar(percent: number, width = 12): string {
-  const cells = Math.max(0, Math.min(width, Math.round((percent / 100) * width)))
-  // A non-finite percent makes both repeat counts NaN, and "█".repeat(NaN) is
-  // the empty string - so the row would lose its bar entirely rather than show
-  // an empty one. Found by the clamp test, not by looking at it.
+const ASCII_FILL = "#"
+const ASCII_TRACK = "-"
+
+export interface BarOptions {
+  /** Target character width of the progress bar. Defaults to 12. */
+  readonly width?: number
+  /** Force ASCII characters (# and -) instead of Unicode blocks. */
+  readonly ascii?: boolean
+}
+
+/**
+ * Renders a visual progress bar.
+ *
+ * Accepts either a numeric width for backward compatibility:
+ *   `bar(50, 12)` -> uses Unicode blocks by default
+ * Or an options object with optional ASCII fallback:
+ *   `bar(50, { width: 12, ascii: true })` -> uses ASCII `#` and `-`
+ */
+export function bar(percent: number, widthOrOptions: number | BarOptions = 12): string {
+  const width = typeof widthOrOptions === "number"
+    ? widthOrOptions
+    : widthOrOptions.width ?? 12
+
+  const useAscii = typeof widthOrOptions === "object" && Boolean(widthOrOptions.ascii)
+
+  const fillChar = useAscii ? ASCII_FILL : UNICODE_FILL
+  const trackChar = useAscii ? ASCII_TRACK : UNICODE_TRACK
+
+  const targetWidth = Math.max(1, Math.floor(width))
+  const cells = Math.max(0, Math.min(targetWidth, Math.round((percent / 100) * targetWidth)))
   const filled = Number.isFinite(cells) ? cells : 0
-  return FILL.repeat(filled) + TRACK.repeat(width - filled)
+
+  return fillChar.repeat(filled) + trackChar.repeat(targetWidth - filled)
 }

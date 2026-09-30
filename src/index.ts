@@ -29,6 +29,8 @@ import { GoalRpc, isGoalAction, isGoalOrigin, pauseReason, type GoalOrigin } fro
 import { goalSystemBlock } from "./prompts.ts"
 import { registerGoalCommand } from "./commands.ts"
 import { registerGoalTools } from "./tools.ts"
+import { logger } from "./logger.ts"
+import { isValidSessionID } from "./security.ts"
 
 export const PLUGIN_ID = "opencode.goal"
 
@@ -72,6 +74,7 @@ const goalPlugin = {
 
     if (options.injectGoal) {
       const inject = async (event: { readonly sessionID: string; readonly system: unknown }): Promise<void> => {
+        if (!isValidSessionID(event.sessionID)) return
         const goal = await engine.get(event.sessionID)
         if (!goal || goal.status === "cleared") return
         const system = event.system as Array<{ type?: string; text?: string }> | undefined
@@ -85,17 +88,24 @@ const goalPlugin = {
         }
       }
 
-      await ctx.session.hook("context", (event) => void inject(event).catch(warn))
-      await ctx.session.hook("compaction", (event) => void inject(event).catch(warn))
-      await ctx.session.hook("generate", (event) => void inject(event).catch(warn))
+      await ctx.session.hook("context", async (event) => {
+        await inject(event).catch(warn)
+      })
+      await ctx.session.hook("compaction", async (event) => {
+        await inject(event).catch(warn)
+      })
+      await ctx.session.hook("generate", async (event) => {
+        await inject(event).catch(warn)
+      })
     }
 
     // A human turn always wins. It clears the continuation bookkeeping so a
     // halted loop is not stuck, and the prompt hook runs before admission, so
     // this can never race the user's own turn.
-    await ctx.session.hook("prompt", (event) => {
+    await ctx.session.hook("prompt", async (event) => {
+      if (!isValidSessionID(event.sessionID)) return
       if (readOrigin(event.metadata) === "continuation") return
-      void engine.onUserPrompt(event.sessionID).catch(warn)
+      await engine.onUserPrompt(event.sessionID).catch(warn)
     })
 
     const controller = new AbortController()
@@ -111,7 +121,9 @@ const goalPlugin = {
 
     const registration = await ctx.rpc.register(GoalRpc, {
       get: async (input) => {
-        const goal = await engine.get((input as { sessionID: string }).sessionID)
+        const sessionID = (input as { sessionID: string }).sessionID
+        if (!isValidSessionID(sessionID)) return { goal: null }
+        const goal = await engine.get(sessionID)
         return { goal: goal ? project(goal, Date.now()) : null }
       },
       list: async () => {
@@ -121,6 +133,9 @@ const goalPlugin = {
       },
       act: async (input, call) => {
         const raw = input as { sessionID: string; action: string; turns?: number; origin?: unknown }
+        if (!isValidSessionID(raw.sessionID)) {
+          return call.error("unknown_action", `Invalid session identifier: ${raw.sessionID}`, { action: raw.action })
+        }
         if (!isGoalAction(raw.action)) {
           return call.error("unknown_action", `Unknown goal action: ${raw.action}`, { action: raw.action })
         }
@@ -203,7 +218,7 @@ export function mergeOptionSources(sources: readonly Record<string, unknown>[]):
 
 function dispatchEvent(engine: GoalEngine, mirror: GoalMirror | undefined, event: { type?: string; data?: unknown }): void {
   const sessionID = readSessionID(event)
-  if (!sessionID) return
+  if (!sessionID || !isValidSessionID(sessionID)) return
   switch (event.type) {
     case "session.idle":
       void engine.onIdle(sessionID).catch(warn)
@@ -275,11 +290,13 @@ function createPort(ctx: PluginContext, emitter: Emitter, mirror: GoalMirror | u
     storage: ctx.storage,
 
     async sessionInfo(sessionID) {
+      if (!isValidSessionID(sessionID)) return undefined
       const info = await ctx.session.get({ sessionID })
       return { agent: info?.agent }
     },
 
     async prompt(input) {
+      if (!isValidSessionID(input.sessionID)) return
       await ctx.session.prompt({
         sessionID: input.sessionID,
         text: input.text,
@@ -289,6 +306,7 @@ function createPort(ctx: PluginContext, emitter: Emitter, mirror: GoalMirror | u
     },
 
     async note(input) {
+      if (!isValidSessionID(input.sessionID)) return
       await ctx.session.synthetic({
         sessionID: input.sessionID,
         text: input.text,
@@ -301,6 +319,7 @@ function createPort(ctx: PluginContext, emitter: Emitter, mirror: GoalMirror | u
     },
 
     async changed(goal, sessionID) {
+      if (!isValidSessionID(sessionID)) return
       // One call site, three channels: the plugin RPC event for clients that
       // speak it, the session's own metadata for clients that only read a
       // session list, and the transcript via lifecycle notices.
@@ -372,7 +391,7 @@ function isOwnNotice(item: unknown): boolean {
 }
 
 function warn(error: unknown): void {
-  console.error(`[opencode-goal] ${error instanceof Error ? error.message : typeof error === "string" ? error : "unknown error"}`)
+  logger.warn(error instanceof Error ? error.message : typeof error === "string" ? error : "unknown error")
 }
 
 export { GoalRpc, GoalEngine, normalizeOptions }

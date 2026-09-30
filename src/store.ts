@@ -3,12 +3,14 @@
  *
  * Goals live in the plugin's own storage, one record per session. Writes are
  * serialized per session so a continuation tick can never clobber a tool call
- * that landed at the same moment. Every storage failure is swallowed: a goal
+ * that landed at the same moment. Every storage failure is handled gracefully: a goal
  * that cannot be persisted must never take a session with it.
  */
 
 import type { StorageDomain } from "@opencode/plugin/promise/storage"
 import { reviveGoal, type Goal } from "./goal.ts"
+import { assertSafeSessionID, isValidSessionID } from "./security.ts"
+import { logger } from "./logger.ts"
 
 /** The plugin's storage takes plain JSON; a Goal is JSON by construction. */
 type Json = Parameters<StorageDomain["set"]>[1]
@@ -30,7 +32,8 @@ export class GoalStore {
   }
 
   key(sessionID: string): string {
-    return `${PREFIX}${sessionID}`
+    const safeID = assertSafeSessionID(sessionID)
+    return `${PREFIX}${safeID}`
   }
 
   /**
@@ -45,6 +48,10 @@ export class GoalStore {
    * single key lookup, so correctness is worth more here than saving it.
    */
   async read(sessionID: string): Promise<Goal | undefined> {
+    if (!isValidSessionID(sessionID)) {
+      return undefined
+    }
+
     try {
       const raw = await this.#storage.get(this.key(sessionID))
       const goal = reviveGoal(raw)
@@ -62,13 +69,15 @@ export class GoalStore {
   }
 
   async write(goal: Goal): Promise<Goal> {
-    this.#cache.set(goal.sessionID, goal)
-    await this.#serialized(goal.sessionID, async () => {
+    const sessionID = assertSafeSessionID(goal.sessionID)
+    this.#cache.set(sessionID, goal)
+    await this.#serialized(sessionID, async () => {
       try {
-        await this.#storage.set(this.key(goal.sessionID), json(goal))
-      } catch {
+        await this.#storage.set(this.key(sessionID), json(goal))
+      } catch (error) {
         // Persistence is best-effort; the in-memory copy stays authoritative
         // for this process lifetime.
+        logger.debug(`storage write fallback to cache: ${error instanceof Error ? error.message : String(error)}`)
       }
     })
     return goal
@@ -79,6 +88,10 @@ export class GoalStore {
    * updater leaves storage untouched.
    */
   async update(sessionID: string, updater: (current: Goal | undefined) => Goal | undefined): Promise<Goal | undefined> {
+    if (!isValidSessionID(sessionID)) {
+      return undefined
+    }
+
     let result: Goal | undefined
     await this.#serialized(sessionID, async () => {
       const current = await this.read(sessionID)
@@ -88,14 +101,18 @@ export class GoalStore {
       this.#cache.set(sessionID, next)
       try {
         await this.#storage.set(this.key(sessionID), json(next))
-      } catch {
-        // See write().
+      } catch (error) {
+        logger.debug(`storage update fallback to cache: ${error instanceof Error ? error.message : String(error)}`)
       }
     })
     return result
   }
 
   async remove(sessionID: string): Promise<void> {
+    if (!isValidSessionID(sessionID)) {
+      return
+    }
+
     this.#cache.delete(sessionID)
     await this.#serialized(sessionID, async () => {
       try {
@@ -115,7 +132,7 @@ export class GoalStore {
         const result = await this.#storage.scan(cursor ? { prefix: PREFIX, after: cursor, limit: SCAN_LIMIT } : { prefix: PREFIX, limit: SCAN_LIMIT })
         for (const entry of result.entries) {
           const sessionID = entry.key.slice(PREFIX.length)
-          if (!sessionID) continue
+          if (!isValidSessionID(sessionID)) continue
           const cached = this.#cache.get(sessionID)
           if (cached) {
             goals.push(cached)
@@ -139,8 +156,13 @@ export class GoalStore {
 
   /** Drops the cached copy so the next read comes from storage. */
   invalidate(sessionID?: string): void {
-    if (sessionID) this.#cache.delete(sessionID)
-    else this.#cache.clear()
+    if (sessionID) {
+      if (isValidSessionID(sessionID)) {
+        this.#cache.delete(sessionID)
+      }
+    } else {
+      this.#cache.clear()
+    }
   }
 
   #serialized<T>(sessionID: string, task: () => Promise<T>): Promise<T> {
