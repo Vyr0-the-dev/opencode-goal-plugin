@@ -32,6 +32,18 @@ describe("bar", () => {
     expect(bar(140, 8)).toBe(FILL.repeat(8))
     expect(bar(Number.NaN, 8)).toBe(TRACK.repeat(8))
   })
+
+  test("renders ASCII fallback when requested", () => {
+    expect(bar(0, { width: 12, ascii: true })).toBe("-".repeat(12))
+    expect(bar(50, { width: 12, ascii: true })).toBe("#".repeat(6) + "-".repeat(6))
+    expect(bar(100, { width: 12, ascii: true })).toBe("#".repeat(12))
+    expect(bar(25, { width: 8, ascii: true })).toBe("##------")
+  })
+
+  test("supports narrow terminal widths cleanly", () => {
+    expect(bar(50, 6)).toBe(FILL.repeat(3) + TRACK.repeat(3))
+    expect(bar(50, { width: 6, ascii: true })).toBe("###---")
+  })
 })
 
 describe("pause origin", () => {
